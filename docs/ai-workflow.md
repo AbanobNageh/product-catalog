@@ -35,3 +35,4 @@ One line per milestone: what the context system helped with, or got wrong.
 
 | Date | Milestone | Observation |
 |---|---|---|
+| 2026-10-21 | 1.1 | The system was built during this milestone, so no fresh session has used it yet. The user's review caught two flaws in its first version: a personal profile in the shared `AGENTS.md`, and commands placed in a Claude-only rules file. |

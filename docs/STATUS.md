@@ -3,14 +3,14 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** 1.1 Repo scaffold. Context system, docs split, ADRs 0001–0003, README skeleton and `.gitignore` drafted.
-- **Last session:** 2026-10-21 (no commits yet)
-- **Next step:** ADR-0001 accepted (option 2 now, option 3 in Part 4). First commit → close 1.1.
+- **Current:** 1.2 catalog-api (not started).
+- **Last session:** 2026-10-21. Closed 1.1 (b7ada79).
+- **Next step:** plan 1.2. Scaffold NestJS 11 + Prisma (current Prisma setup, see ADR-0003), Postgres + Redis in Compose, and a `SearchIndexer` stub (ADR-0001). Check that `.claude/rules/services.md` loads.
 - **Open questions / blockers:** none
 
 ## Checklist
 ### Part 1: the app ([plan](plan/app.md))
-- [ ] 1.1 Repo scaffold
+- [x] 1.1 Repo scaffold · 2026-10-21 · b7ada79 · [note](milestones/2026-10-21-1.1-repo-scaffold.md)
 - [ ] 1.2 catalog-api
 - [ ] 1.3 search-service
 - [ ] 1.4 Wire up + Compose
