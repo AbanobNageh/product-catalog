@@ -45,7 +45,7 @@ The AI builds it; I review it. Estimated time: 2–4 days.
 
 Migrations live in the repo and run as a **separate command** (for example `npm run migrate`), not automatically when the app starts. In Part 2 they'll run as a Kubernetes Job.
 
-## catalog-api (NestJS 11, TypeScript)
+## catalog-api (NestJS 12, TypeScript)
 
 ORM: **Prisma** ([ADR-0003](../adr/0003-prisma-as-orm.md)). `prisma migrate deploy` makes a clean Kubernetes Job.
 
@@ -58,12 +58,13 @@ Endpoints:
 | GET | /products?page&limit | list from Postgres, no cache |
 | PATCH | /products/:id | update, invalidate the cache, re-index |
 | DELETE | /products/:id | delete, invalidate the cache, remove from the index |
-| GET | /products/search?q&category&brand&minPrice&maxPrice&inStock&sort&page&size | proxies to search-service; caches results in Redis for 60s, keyed by the normalised query |
+| GET | /products/search?q&category&brand&minPrice&maxPrice&inStock&sort&page&size | proxies to search-service; caches results in Redis for 60s, keyed by the normalised query; any product write invalidates cached search results |
 | POST | /admin/reindex | pages through Postgres and sends products in bulk to search-service |
 | GET | /healthz | liveness: the process is up (no dependency checks) |
 | GET | /readyz | readiness: Postgres and Redis reachable |
 
 - `sort`: `relevance` (default), `price_asc`, `price_desc` or `newest`.
+- `minPrice` and `maxPrice` are in cents, like `price_cents`.
 - **Validation:** `class-validator` DTOs.
 - **Swagger:** `@nestjs/swagger` at `/docs`.
 - **Seed:** `npm run seed` creates about 10,000 fake products with `@faker-js/faker`, across about 10 categories and 30 brands, then calls reindex.

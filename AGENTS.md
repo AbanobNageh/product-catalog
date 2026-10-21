@@ -19,6 +19,23 @@ A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, wit
 ## Commands
 _Added as each service is built (milestones 1.2–1.4): install, run, test, migrate, seed._
 
+Infrastructure (repo root):
+- Start Postgres + Redis: `docker compose up -d postgres redis`. Check: `docker compose ps` (both `healthy`)
+- Stop: `docker compose stop`. (`docker compose down -v` also deletes the Postgres volume, so ask first)
+
+catalog-api (`services/catalog-api`):
+- Install: `npm ci`. Approved install scripts are pinned in `package.json` `allowScripts` (npm 11)
+- Local env: `Copy-Item .env.example .env`
+- Run (watch): `npm run start:dev`. Swagger at http://localhost:3000/docs
+- Unit tests: `npm test`. It runs Jest with `--experimental-vm-modules`, because Nest 12 packages are ESM-only (ADR-0004)
+- e2e test: `npm run test:e2e`. Needs Compose Postgres + Redis. It uses database `catalog_test` (it refuses any name not ending in `_test`) and Redis DB 1, applies migrations, and never resets or truncates
+- Lint / format: `npm run lint` (oxlint, type-aware) / `npm run format` (prettier). The `unbound-method` warnings in `*.spec.ts` are Jest-mock false positives
+- Build: `npm run build`. This runs `prisma generate` first; the client goes to `src/generated/` (git-ignored)
+- Migrate (apply committed migrations): `npm run migrate` (`prisma migrate deploy`). Never run at app startup
+- New migration after a schema change: `npm run migrate:dev -- --name <change>`. Prisma 7 doesn't regenerate the client here, so run `npm run prisma:generate` after
+- Image (from the repo root): `docker build -t catalog-api:dev services/catalog-api`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 3000:3000 -e DATABASE_URL=postgresql://catalog:catalog@postgres:5432/catalog -e REDIS_URL=redis://redis:6379/0 catalog-api:dev`
+- Prisma's update notice suggests `prisma@latest`. Ignore it: that tag is an 8.0 RC, and we stay pinned to 7.10.1 (ADR-0004)
+
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** the AI writes the code, one milestone at a time, and stops at each milestone's "Done when" check for my review. At the end of each milestone it gives a short tour (files, key decisions) I could repeat in an interview.
 - **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** I write every manifest, chart and HCL file. The AI teaches, hints, reviews and quizzes, following `.claude/skills/teach-module/SKILL.md`. It never writes the solution unless I ask for it.

@@ -1,0 +1,35 @@
+# Local run for Part 1. Milestone 1.2 has Postgres and Redis only; 1.4 adds
+# the two services and OpenSearch.
+name: product-catalog
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog # local only
+      POSTGRES_DB: catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ images keep data in /var/lib/postgresql/<major>/docker,
+      # so mount the parent. The old /var/lib/postgresql/data mount is wrong now.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catalog -d catalog"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
