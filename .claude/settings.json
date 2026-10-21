@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(terraform *apply*)",
+      "Bash(terraform *destroy*)",
+      "Bash(terraform *state rm*)",
+      "Bash(aws *)",
+      "Bash(kind delete*)",
+      "Bash(minikube delete*)",
+      "Bash(kubectl *delete*)",
+      "Bash(helm *uninstall*)",
+      "Bash(helm *delete*)",
+      "Bash(docker compose down*)",
+      "Bash(docker volume rm*)",
+      "Bash(docker volume prune*)",
+      "Bash(docker system prune*)",
+      "PowerShell(terraform *apply*)",
+      "PowerShell(terraform *destroy*)",
+      "PowerShell(terraform *state rm*)",
+      "PowerShell(aws *)",
+      "PowerShell(kind delete*)",
+      "PowerShell(minikube delete*)",
+      "PowerShell(kubectl *delete*)",
+      "PowerShell(helm *uninstall*)",
+      "PowerShell(helm *delete*)",
+      "PowerShell(docker compose down*)",
+      "PowerShell(docker volume rm*)",
+      "PowerShell(docker volume prune*)",
+      "PowerShell(docker system prune*)"
+    ]
+  }
+}

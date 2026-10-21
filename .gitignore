@@ -1,0 +1,39 @@
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+
+# Go
+/services/search-service/bin/
+*.test
+*.out
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Terraform (the lock file IS committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+*.tfvars
+!*.tfvars.example
+
+# Kubernetes local
+kubeconfig*
+*.kubeconfig
+
+# Claude Code: personal, uncommitted overrides
+.claude/settings.local.json
+CLAUDE.local.md
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

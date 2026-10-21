@@ -1,0 +1,48 @@
+# AGENTS.md: Product Catalog
+
+Instructions for any AI coding assistant working in this repo. This file is loaded every session, so it stays short. Detail lives in `docs/` and is read when needed. How this context system works: `docs/ai-workflow.md`.
+
+## Overview
+A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, with PostgreSQL, Redis and OpenSearch), built to **learn Kubernetes and Terraform** by deploying it. It is also a portfolio piece that shows how I work with an AI assistant. Roadmap: `PLAN.md`. Current state: `docs/STATUS.md`. App spec: `docs/plan/app.md`.
+
+## The learner
+- Backend engineer, about 5.5 years. Strong in NestJS/TypeScript, Go, PostgreSQL, Redis and OpenSearch, so skip the basics there.
+- **New to Kubernetes and Terraform.** A little AWS (ECS services, IAM task roles through Terraform someone else wrote, S3). Pitch explanations at this level.
+
+## Setup
+- Host: Windows 11, Docker Desktop (WSL2). Give **PowerShell** commands.
+- Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), Go 1.26, Node 24, minikube 1.39 (unused; this project uses kind).
+- Install when the module starts: kind (`winget install Kubernetes.kind`), Helm (`winget install Helm.Helm`), Terraform (`winget install Hashicorp.Terraform`). Optional: k9s (`winget install Derailed.k9s`), `hey` or k6.
+- **Docker Desktop memory:** WSL2 needs at least 8 GB (in `.wslconfig`).
+- **OpenSearch** 2.12+ needs `OPENSEARCH_INITIAL_ADMIN_PASSWORD`, or `DISABLE_SECURITY_PLUGIN=true` (fine locally). Use `discovery.type=single-node` and a 512 MB JVM heap. If it complains about `vm.max_map_count`: `wsl -d docker-desktop sysctl -w vm.max_map_count=262144`.
+
+## Commands
+_Added as each service is built (milestones 1.2–1.4): install, run, test, migrate, seed._
+
+## Who writes what
+- **Part 1, the app (`services/`, `docker-compose.yml`):** the AI writes the code, one milestone at a time, and stops at each milestone's "Done when" check for my review. At the end of each milestone it gives a short tour (files, key decisions) I could repeat in an interview.
+- **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** I write every manifest, chart and HCL file. The AI teaches, hints, reviews and quizzes, following `.claude/skills/teach-module/SKILL.md`. It never writes the solution unless I ask for it.
+
+## Rules
+- One milestone or module at a time. No scope beyond the plan without asking.
+- Prefer official docs (kubernetes.io, helm.sh, developer.hashicorp.com, opensearch.org) and current versions. Warn me when a common tutorial approach is outdated.
+- **Never run anything that costs money** (for example `terraform apply` against real AWS) or **deletes my data or clusters** without my go-ahead in that moment.
+- When something breaks, teach me to debug it (`describe`, `logs`, events) rather than just fixing it.
+- Don't guess at gaps in the spec. Write `[NEEDS CLARIFICATION: ...]` and ask.
+- A real decision (a choice between alternatives someone might question) gets a proposed ADR in `docs/adr/`.
+
+## Session routine
+- **Start:** `docs/STATUS.md` is already in context. Run `git log --oneline -10` and read the current milestone's section in `docs/plan/`. Then restate in 3 lines or fewer: current milestone, last thing done, next step. If something is already built or running, smoke-check it before new work (`docker compose ps`, the tests, `kubectl get pods -n catalog`).
+- **During:** keep the "Now" block of `docs/STATUS.md` current when the next step changes.
+- **At a "Done when" check:** follow `.claude/skills/close-milestone/SKILL.md`.
+
+## Where things live
+| Path | What | Owner and edit rule |
+|---|---|---|
+| `AGENTS.md`, `CLAUDE.md`, `.claude/`, `PLAN.md`, `docs/plan/` | Instructions, roadmap, spec | Me. The AI proposes changes and applies them only after I approve. Exception: the AI fills in **Commands** above as it builds each service |
+| `docs/STATUS.md` | Current state and checklist | The AI. Rewrite "Now"; the checklist is tick-only |
+| `docs/milestones/` | One note per finished milestone or module (plus any milestone plans) | The AI writes; frozen once committed |
+| `docs/adr/` | Architecture decision records | Append-only. A changed decision gets a new ADR that supersedes the old one |
+| `docs/research/` | Research behind decisions | Frozen |
+| `docs/ai-workflow.md` | How this context system works, plus the experiment log | The AI drafts and appends to the log; I approve |
+| `LEARNING-NOTES.md` | My notes, in my own words | Me only. The AI may remind me, never edits it |
