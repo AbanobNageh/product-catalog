@@ -3,15 +3,15 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** 1.2 catalog-api (not started).
-- **Last session:** 2026-10-21. Closed 1.1 (b7ada79).
-- **Next step:** plan 1.2. Scaffold NestJS 11 + Prisma (current Prisma setup, see ADR-0003), Postgres + Redis in Compose, and a `SearchIndexer` stub (ADR-0001). Check that `.claude/rules/services.md` loads.
-- **Open questions / blockers:** none
+- **Current:** 1.3 search-service (not started).
+- **Last session:** 2026-10-21. Closed 1.2 catalog-api (803731c, [note](milestones/2026-10-21-1.2-catalog-api.md)).
+- **Next step:** plan 1.3. Go 1.26 `net/http` + `opensearch-go` v4 + OpenSearch in Compose. Implement the `SearchResult` contract from `services/catalog-api/src/search/search.ports.ts`. Include the 1.2 follow-ups: index versioning on `updatedAt` and `refresh=wait_for` on single upserts.
+- **Open questions / blockers:** confirm with `/memory` that `.claude/rules/services.md` loads (not observed in 1.2).
 
 ## Checklist
 ### Part 1: the app ([plan](plan/app.md))
 - [x] 1.1 Repo scaffold · 2026-10-21 · b7ada79 · [note](milestones/2026-10-21-1.1-repo-scaffold.md)
-- [ ] 1.2 catalog-api
+- [x] 1.2 catalog-api · 2026-10-21 · 803731c · [note](milestones/2026-10-21-1.2-catalog-api.md)
 - [ ] 1.3 search-service
 - [ ] 1.4 Wire up + Compose
 - [ ] 1.5 Polish
