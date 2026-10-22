@@ -3,19 +3,13 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** 1.5 Polish (building on branch `1.5-polish`: Tasks 1–7 done and reviewed; final-review fixes in progress; then the live Done-when checks and close).
-- **Last session:** 2026-10-22. Closed 1.4 Wire up + Compose (a3e4e74, [note](milestones/2026-10-22-1.4-wire-up-compose.md)). ADR-0006 accepted.
-- **Next step:** finish the final-review fix wave, then run Task 8 (the live Done-when checks) and `close-milestone`. The plan is [here](milestones/2026-10-22-1.5-plan.md), executed subagent-driven.
-  - [ADR-0007](adr/0007-alias-swap-reindex-with-live-writes.md) (alias-swap reindex with live writes) is approved as the design. It stays Proposed until the close.
-  - The plan edits are applied (uncommitted):
-    - `app.md`: 1.5's new scope and "Done when", plus the new endpoints
-    - `extras.md`: the alias swap moved to 1.5
-    - `kubernetes.md` K4: the auto-create setting
-    - `PLAN.md`: the README is the last step of the whole project
-- **1.5 scope (agreed):**
-  - The alias-swap reindex, including versioned deletes and the `action.auto_create_index` guard.
-  - Images tagged `0.1.0`.
-  - The deferred review minors from the [1.4 note](milestones/2026-10-22-1.4-wire-up-compose.md#follow-ups).
+- **Current:** K0 Concepts and setup (not started). Part 1 is complete.
+- **Last session:** 2026-10-22. Closed 1.5 Polish (bdae727, [note](milestones/2026-10-22-1.5-polish.md)). ADR-0007 accepted. Part 1 is done.
+- **Next step:** start K0 with the `teach-module` skill ([plan](plan/kubernetes.md)). First install kind (`winget install Kubernetes.kind`).
+  - Carried into Part 2 from the [1.5 note](milestones/2026-10-22-1.5-polish.md#follow-ups):
+    - K4/K7: OpenSearch must run with `action.auto_create_index: "-products*,+*"`, or search-service won't start.
+    - K2: the seed runs as a Job.
+    - K3: the migration image.
 - **Open questions / blockers:** none.
 
 ## Checklist
@@ -24,7 +18,7 @@
 - [x] 1.2 catalog-api · 2026-10-21 · 803731c · [note](milestones/2026-10-21-1.2-catalog-api.md)
 - [x] 1.3 search-service · 2026-10-22 · 99ca6da · [note](milestones/2026-10-22-1.3-search-service.md)
 - [x] 1.4 Wire up + Compose · 2026-10-22 · a3e4e74 · [note](milestones/2026-10-22-1.4-wire-up-compose.md)
-- [ ] 1.5 Polish
+- [x] 1.5 Polish · 2026-10-22 · bdae727 · [note](milestones/2026-10-22-1.5-polish.md)
 
 ### Part 2: Kubernetes ([plan](plan/kubernetes.md))
 - [ ] K0 Concepts and setup
