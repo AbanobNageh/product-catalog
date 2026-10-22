@@ -2,7 +2,7 @@
 
 // Package ittest holds helpers for integration tests against a real
 // OpenSearch (the Compose one by default). Every test gets throwaway index
-// names, and cleanup deletes only that index, never products-v1.
+// names, and cleanup deletes only that test's indices, never products-v1.
 package ittest
 
 import (
@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/opensearch-project/opensearch-go/v5/opensearchapi"
@@ -33,16 +34,32 @@ func Client(t *testing.T) *opensearchapi.Client {
 	return c
 }
 
-// Names returns unique index and alias names, deleting the index when the
-// test ends. The index itself is not created.
+// Names returns unique index and alias names. When the test ends it deletes
+// every <base>-v<n> index the test made (a reindex adds -v2, -v3...). The
+// indices are listed and deleted by exact name, never by a wildcard delete.
+// The index itself is not created.
 func Names(t *testing.T, c *opensearchapi.Client) index.Names {
 	t.Helper()
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
-	base := "it-" + hex.EncodeToString(b)
-	n := index.Names{Index: base + "-v1", Alias: base}
+	base := "products-it-" + hex.EncodeToString(b)
+	n := index.Names{Index: base + "-v1", Alias: base, BuildAlias: base + "-build"}
 	t.Cleanup(func() {
-		_, _ = c.Indices.Delete(context.Background(), &opensearchapi.IndicesDeleteReq{Indices: []string{n.Index}})
+		ctx := context.Background()
+		resp, err := c.Indices.GetAlias(ctx, &opensearchapi.IndicesGetAliasReq{
+			Indices: []string{base + "-v*"},
+			Params:  &opensearchapi.IndicesGetAliasParams{AllowNoIndices: new(true), IgnoreUnavailable: new(true)},
+		})
+		if err != nil {
+			t.Logf("cleanup: list %s-v*: %v", base, err)
+			return
+		}
+		for name := range resp.Entries {
+			if !strings.HasPrefix(name, base+"-v") {
+				continue
+			}
+			_, _ = c.Indices.Delete(ctx, &opensearchapi.IndicesDeleteReq{Indices: []string{name}})
+		}
 	})
 	return n
 }

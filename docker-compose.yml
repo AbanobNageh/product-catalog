@@ -41,6 +41,9 @@ services:
       DISABLE_SECURITY_PLUGIN: "true"
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
       bootstrap.memory_lock: "true"
+      # A versioned delete aimed at a missing products index would create it.
+      # Block that for products*; search-service refuses to start otherwise (ADR-0007).
+      action.auto_create_index: "-products*,+*"
     ulimits:
       memlock:
         soft: -1
@@ -76,7 +79,7 @@ services:
 
   search-service:
     build: services/search-service
-    image: search-service:dev
+    image: search-service:0.1.0
     environment:
       OPENSEARCH_URL: http://opensearch:9200
       LOG_LEVEL: info
@@ -94,7 +97,7 @@ services:
 
   catalog-api:
     build: services/catalog-api
-    image: catalog-api:dev
+    image: catalog-api:0.1.0
     ports:
       - "3000:3000"
     environment:

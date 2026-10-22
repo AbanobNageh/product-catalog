@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AbanobNageh/product-catalog/services/search-service/internal/catalog"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/config"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/healthcheck"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/httpapi"
@@ -22,6 +23,7 @@ import (
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/indexer"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/osclient"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/searcher"
+	"github.com/opensearch-project/opensearch-go/v5/opensearchapi"
 )
 
 const (
@@ -67,6 +69,8 @@ func run() int {
 		return 2
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	// The index package logs through the default logger; keep it JSON too.
+	slog.SetDefault(log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
@@ -81,19 +85,32 @@ func run() int {
 	// OpenSearch may still be booting (Compose, a Kubernetes rollout), so
 	// wait a bounded time for it. After that, exit and let the orchestrator
 	// restart us rather than hang.
-	ensure := func(ctx context.Context) error { return index.Ensure(ctx, client, index.Default) }
+	ensure := func(ctx context.Context) error {
+		// Guard first: a cluster that auto-creates products* indices breaks
+		// the writes' alias protection, so refuse to run on it (ADR-0007).
+		if err := index.CheckAutoCreateGuard(ctx, client); err != nil {
+			return err
+		}
+		return index.Ensure(ctx, client, index.Default)
+	}
 	if err := index.WaitFor(ctx, ensure, startupRetryEvery, startupWait); err != nil {
+		if errors.Is(err, index.ErrAutoCreateAllowed) {
+			log.Error("unsafe opensearch configuration", "url", cfg.OpenSearchURL, "err", err)
+			return 1
+		}
 		log.Error("opensearch not ready", "url", cfg.OpenSearchURL, "err", err)
 		return 1
 	}
 	log.Info("index ready", "index", index.Default.Index, "alias", index.Default.Alias)
 
+	idx := indexer.New(client, index.Default, log)
 	srv := &http.Server{
 		Addr: net.JoinHostPort("", strconv.Itoa(cfg.Port)),
 		Handler: httpapi.NewServer(httpapi.Deps{
-			Indexer:  indexer.New(client, index.Default.Alias, log),
-			Searcher: searcher.New(client, index.Default.Alias),
-			Ready:    func(ctx context.Context) error { return index.Ready(ctx, client, index.Default) },
+			Indexer:   idx,
+			Reindexer: reindexer{c: client, idx: idx},
+			Searcher:  searcher.New(client, index.Default.Alias),
+			Ready:     func(ctx context.Context) error { return index.Ready(ctx, client, index.Default) },
 		}, log),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -125,4 +142,27 @@ func run() int {
 	}
 	log.Info("shutdown complete")
 	return 0
+}
+
+// reindexer adapts the build lifecycle in package index and Indexer.BulkBuild
+// to httpapi.Reindexer.
+type reindexer struct {
+	c   *opensearchapi.Client
+	idx *indexer.Indexer
+}
+
+func (r reindexer) Start(ctx context.Context) (string, error) {
+	return index.StartBuild(ctx, r.c, index.Default, index.BuildStaleAfter)
+}
+
+func (r reindexer) Bulk(ctx context.Context, build string, ps []catalog.Product) (indexer.BulkResult, error) {
+	return r.idx.BulkBuild(ctx, build, ps)
+}
+
+func (r reindexer) Finish(ctx context.Context, build string) error {
+	return index.FinishBuild(ctx, r.c, index.Default, build)
+}
+
+func (r reindexer) Abort(ctx context.Context, build string) error {
+	return index.AbortBuild(ctx, r.c, index.Default, build)
 }

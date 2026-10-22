@@ -29,27 +29,28 @@ Infrastructure (repo root):
 catalog-api (`services/catalog-api`):
 - Install: `npm ci`. Approved install scripts are pinned in `package.json` `allowScripts` (npm 11)
 - Local env: `Copy-Item .env.example .env`. `SEARCH_SERVICE_URL` is required from 1.4, so add that line to an older `.env`
-- Run (watch): `npm run start:dev`. Swagger at http://localhost:3000/docs
+- Run (watch): `npm run start:dev`. Swagger at http://localhost:3000/docs. It listens on port 3000, so it clashes with Compose's catalog-api: run `docker compose stop catalog-api` first
 - Unit tests: `npm test`. It runs Jest with `--experimental-vm-modules`, because Nest 12 packages are ESM-only (ADR-0004)
 - e2e test: `npm run test:e2e`. Needs Compose Postgres + Redis. It uses database `catalog_test` (it refuses any name not ending in `_test`) and Redis DB 1, applies migrations, and never resets or truncates
 - Lint / format: `npm run lint` (oxlint, type-aware) / `npm run format` (prettier). The `unbound-method` warnings in `*.spec.ts` are Jest-mock false positives
 - Build: `npm run build`. This runs `prisma generate` first; the client goes to `src/generated/` (git-ignored)
 - Migrate (apply committed migrations): `npm run migrate` (`prisma migrate deploy`). Never run at app startup
 - New migration after a schema change: `npm run migrate:dev -- --name <change>`. Prisma 7 doesn't regenerate the client here, so run `npm run prisma:generate` after
-- Image (from the repo root): `docker build -t catalog-api:dev services/catalog-api`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 3000:3000 -e DATABASE_URL=postgresql://catalog:catalog@postgres:5432/catalog -e REDIS_URL=redis://redis:6379/0 -e SEARCH_SERVICE_URL=http://search-service:8080 catalog-api:dev`
-- Seed 10,000 products, then reindex: `npm run seed`. It needs the full Compose stack up (catalog-api on :3000). Re-running it is safe: the fixed `SEED-00001…` SKUs are skipped. Env: `DATABASE_URL` (from `.env`) and `CATALOG_API_URL` (default `http://localhost:3000`). It exits 1 if the reindex fails or reports `failed` items
+- Image (from the repo root): `docker build -t catalog-api:0.1.0 services/catalog-api`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 3000:3000 -e DATABASE_URL=postgresql://catalog:catalog@postgres:5432/catalog -e REDIS_URL=redis://redis:6379/0 -e SEARCH_SERVICE_URL=http://search-service:8080 catalog-api:0.1.0`
+- Seed 10,000 products, then reindex: `npm run seed`. It needs the full Compose stack up (catalog-api on :3000). Re-running it is safe: the fixed `SEED-00001…` SKUs are skipped. Env: `DATABASE_URL` (from `.env`) and `CATALOG_API_URL` (default `http://localhost:3000`). It exits 1 if catalog-api is unreachable, or the reindex fails, reports `failed` items or doesn't swap
 - Seed from inside Compose, the way a K2 Job will run it: `docker compose run --rm -e CATALOG_API_URL=http://catalog-api:3000 catalog-api node dist/seed/main.js`
 - Prisma's update notice suggests `prisma@latest`. Ignore it: that tag is an 8.0 RC, and we stay pinned to 7.10.1 (ADR-0004)
 
 search-service (`services/search-service`):
 - Start OpenSearch: `docker compose up -d opensearch` (from the repo root). It takes about 30s to become `healthy`. The performance-analyzer `ERROR` lines in its log are harmless. The image is pinned to `3.9.0`: `latest` is the 2.19 line (ADR-0005)
 - Run: `go run ./cmd/search-service`. Env: `PORT` (8080), `OPENSEARCH_URL` (`http://localhost:9200`), `LOG_LEVEL` (`info`). The defaults suit a native run, so no env file is needed. Example: `$env:LOG_LEVEL='debug'; go run ./cmd/search-service`. **On this machine, port 8080 is taken by another app**, so run natively with `$env:PORT='8081'`, and use 8081 in the curl examples below and in catalog-api's `.env` `SEARCH_SERVICE_URL`. Compose isn't affected (no host port)
+- Run natively against an OpenSearch other than the Compose one: it must be started with `action.auto_create_index: "-products*,+*"` (Compose sets it), or search-service refuses to start
 - Unit tests: `go test ./...`
-- Integration tests: `go test -tags integration ./...`. Needs Compose OpenSearch. Each test uses its own throwaway `it-<random>` index and deletes it afterwards; `products-v1` is never touched
+- Integration tests: `go test -tags integration ./...`. Needs Compose OpenSearch. Each test uses its own throwaway `products-it-<hex>` index and deletes it afterwards; `products-v1` is never touched
 - Vet / format: `go vet ./...` / `gofmt -l .` (prints nothing when clean; `gofmt -w .` fixes)
 - Load the sample data (30 products). The `@` path is relative, so change directory first: `Set-Location D:\Projects\product-catalog\services\search-service; curl.exe -s -X POST localhost:8080/products/_bulk -H "Content-Type: application/json" --data-binary "@testdata/sample-products.json"`
 - Try a search: `curl.exe -s "localhost:8080/search?q=phone&category=electronics&minPrice=10000&inStock=true&sort=price_asc"`
-- Image (from the repo root): `docker build -t search-service:dev services/search-service`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 8080:8080 -e OPENSEARCH_URL=http://opensearch:9200 search-service:dev`
+- Image (from the repo root): `docker build -t search-service:0.1.0 services/search-service`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 8080:8080 -e OPENSEARCH_URL=http://opensearch:9200 search-service:0.1.0`
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** the AI writes the code, one milestone at a time, and stops at each milestone's "Done when" check for my review. At the end of each milestone it gives a short tour (files, key decisions) I could repeat in an interview.

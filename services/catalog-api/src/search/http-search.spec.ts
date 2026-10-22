@@ -8,8 +8,10 @@ import type { ProductResponse } from '../products/dto/product.response';
 import {
   HttpSearchClient,
   HttpSearchIndexer,
+  HttpSearchReindexer,
   toSearchParams,
 } from './http-search';
+import { SearchServiceError } from './search-service-fetch';
 import {
   type BulkIndexResult,
   type SearchQuery,
@@ -69,52 +71,108 @@ describe('HTTP search adapters', () => {
       expect(JSON.parse(calls[0].body)).toEqual(product('p1'));
     });
 
-    it('removes with DELETE /products/:id', async () => {
+    it('removes with DELETE /products/:id?version=', async () => {
       reply = (res) => res.writeHead(204).end();
       await expect(
-        new HttpSearchIndexer(server.url).remove('p1'),
+        new HttpSearchIndexer(server.url).remove('p1', 1792576800124),
       ).resolves.toBeUndefined();
-      expect(calls[0]).toMatchObject({ method: 'DELETE', url: '/products/p1' });
+      expect(calls[0]).toMatchObject({
+        method: 'DELETE',
+        url: '/products/p1?version=1792576800124',
+      });
     });
 
-    it('bulk-indexes with POST /products/_bulk and returns search-service result unchanged', async () => {
-      const result: BulkIndexResult = {
-        indexed: 1,
-        skipped: 1,
-        failed: [{ id: 'p2', status: 400, reason: 'bad' }],
-      };
+    it('gives single writes the short timeout', async () => {
+      reply = (res) => setTimeout(() => json(200, {})(res), 100);
+      const indexer = new HttpSearchIndexer(server.url, {
+        requestMs: 50,
+        bulkMs: 1000,
+      });
+      await expect(indexer.upsert(product('p1'))).rejects.toBeInstanceOf(
+        SearchUnavailableError,
+      );
+    });
+  });
+
+  describe('HttpSearchReindexer', () => {
+    const result: BulkIndexResult = {
+      indexed: 1,
+      skipped: 1,
+      failed: [{ id: 'p2', status: 400, reason: 'bad' }],
+    };
+
+    it('start POSTs /reindex/start and returns the build name', async () => {
+      reply = json(201, { build: 'products-v2' });
+      await expect(new HttpSearchReindexer(server.url).start()).resolves.toBe(
+        'products-v2',
+      );
+      expect(calls[0]).toMatchObject({
+        method: 'POST',
+        url: '/reindex/start',
+      });
+    });
+
+    it('start throws on an empty 201 body', async () => {
+      reply = (res) => res.writeHead(201).end();
+      await expect(new HttpSearchReindexer(server.url).start()).rejects.toThrow(
+        'empty reindex start response',
+      );
+    });
+
+    it('bulk POSTs {build, products} to /reindex/_bulk and returns the result', async () => {
       reply = json(200, result);
       await expect(
-        new HttpSearchIndexer(server.url).bulkUpsert([
+        new HttpSearchReindexer(server.url).bulk('products-v2', [
           product('p1'),
           product('p2'),
         ]),
       ).resolves.toEqual(result);
       expect(calls[0]).toMatchObject({
         method: 'POST',
-        url: '/products/_bulk',
+        url: '/reindex/_bulk',
       });
       expect(JSON.parse(calls[0].body)).toEqual({
+        build: 'products-v2',
         products: [product('p1'), product('p2')],
       });
     });
 
-    it('gives bulk calls the longer timeout', async () => {
-      reply = (res) =>
-        setTimeout(
-          () => json(200, { indexed: 0, skipped: 0, failed: [] })(res),
-          100,
-        );
-      const indexer = new HttpSearchIndexer(server.url, {
+    it('bulk throws on an empty 200 body', async () => {
+      reply = (res) => res.writeHead(200).end();
+      await expect(
+        new HttpSearchReindexer(server.url).bulk('products-v2', []),
+      ).rejects.toThrow('empty bulk response');
+    });
+
+    it('finish and abort POST {build}', async () => {
+      reply = (res) => res.writeHead(204).end();
+      const reindexer = new HttpSearchReindexer(server.url);
+      await reindexer.finish('products-v2');
+      await reindexer.abort('products-v2');
+      expect(calls.map((c) => [c.method, c.url])).toEqual([
+        ['POST', '/reindex/finish'],
+        ['POST', '/reindex/abort'],
+      ]);
+      expect(JSON.parse(calls[0].body)).toEqual({ build: 'products-v2' });
+      expect(JSON.parse(calls[1].body)).toEqual({ build: 'products-v2' });
+    });
+
+    it('surfaces a 409 from finish as SearchServiceError(409)', async () => {
+      reply = json(409, { error: 'build gone' });
+      const err: unknown = await new HttpSearchReindexer(server.url)
+        .finish('products-v2')
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(SearchServiceError);
+      expect((err as SearchServiceError).status).toBe(409);
+    });
+
+    it('uses the longer timeout for every reindex call', async () => {
+      reply = (res) => setTimeout(() => json(200, result)(res), 100);
+      const reindexer = new HttpSearchReindexer(server.url, {
         requestMs: 50,
         bulkMs: 1000,
       });
-      await expect(indexer.bulkUpsert([product('p1')])).resolves.toMatchObject({
-        indexed: 0,
-      });
-      await expect(indexer.upsert(product('p1'))).rejects.toBeInstanceOf(
-        SearchUnavailableError,
-      );
+      await expect(reindexer.bulk('b', [])).resolves.toEqual(result);
     });
   });
 

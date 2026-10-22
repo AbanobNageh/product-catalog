@@ -3,13 +3,19 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** 1.5 Polish (not started).
+- **Current:** 1.5 Polish (building on branch `1.5-polish`: Tasks 1–7 done and reviewed; final-review fixes in progress; then the live Done-when checks and close).
 - **Last session:** 2026-10-22. Closed 1.4 Wire up + Compose (a3e4e74, [note](milestones/2026-10-22-1.4-wire-up-compose.md)). ADR-0006 accepted.
-- **Next step:** plan 1.5.
-  - The README: how to run it (Compose, seed, Dashboards), the architecture diagram and the trade-offs.
+- **Next step:** finish the final-review fix wave, then run Task 8 (the live Done-when checks) and `close-milestone`. The plan is [here](milestones/2026-10-22-1.5-plan.md), executed subagent-driven.
+  - [ADR-0007](adr/0007-alias-swap-reindex-with-live-writes.md) (alias-swap reindex with live writes) is approved as the design. It stays Proposed until the close.
+  - The plan edits are applied (uncommitted):
+    - `app.md`: 1.5's new scope and "Done when", plus the new endpoints
+    - `extras.md`: the alias swap moved to 1.5
+    - `kubernetes.md` K4: the auto-create setting
+    - `PLAN.md`: the README is the last step of the whole project
+- **1.5 scope (agreed):**
+  - The alias-swap reindex, including versioned deletes and the `action.auto_create_index` guard.
   - Images tagged `0.1.0`.
-  - The user added an **alias-swap reindex** to 1.5: build a fresh `products-<n>` index, refresh once, swap the alias. Reindex then removes products deleted while search-service was down, and the 21s per-batch refresh goes away.
-  - Deferred review minors are in the [1.4 note](milestones/2026-10-22-1.4-wire-up-compose.md#follow-ups).
+  - The deferred review minors from the [1.4 note](milestones/2026-10-22-1.4-wire-up-compose.md#follow-ups).
 - **Open questions / blockers:** none.
 
 ## Checklist

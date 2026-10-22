@@ -7,9 +7,22 @@ import type { ProductResponse } from '../products/dto/product.response';
  */
 export interface SearchIndexer {
   upsert(product: ProductResponse): Promise<void>;
-  remove(id: string): Promise<void>;
-  /** Partial failures are reported in the result, not thrown. */
-  bulkUpsert(products: ProductResponse[]): Promise<BulkIndexResult>;
+  /** `version` (ms) lets search-service ignore a delete older than a newer write. */
+  remove(id: string, version: number): Promise<void>;
+}
+
+/**
+ * The alias-swap reindex lifecycle: start a build, bulk into it, then finish
+ * (swap) or abort. A 409 (SearchServiceError) means the build is gone or
+ * another reindex is running. Partial bulk failures are reported, not thrown.
+ */
+export interface SearchReindexer {
+  /** Returns the new build index name. */
+  start(): Promise<string>;
+  bulk(build: string, products: ProductResponse[]): Promise<BulkIndexResult>;
+  finish(build: string): Promise<void>;
+  /** Idempotent: also succeeds when the build is already gone. */
+  abort(build: string): Promise<void>;
 }
 
 /** One product search-service could not index; reindex it later. */
@@ -33,6 +46,7 @@ export interface SearchClient {
 }
 
 export const SEARCH_INDEXER = Symbol('SEARCH_INDEXER');
+export const SEARCH_REINDEXER = Symbol('SEARCH_REINDEXER');
 export const SEARCH_CLIENT = Symbol('SEARCH_CLIENT');
 
 /** Bumped on every product write; part of every search cache key. */

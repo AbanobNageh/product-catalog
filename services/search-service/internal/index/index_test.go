@@ -56,6 +56,31 @@ func TestBody(t *testing.T) {
 	}
 }
 
+// The build alias is the write index of its build, so a second index can't
+// join it: a start that races another start fails instead of leaving two
+// indices behind the alias.
+func TestBuildBody(t *testing.T) {
+	var b struct {
+		Settings map[string]any `json:"settings"`
+		Aliases  map[string]struct {
+			IsWriteIndex *bool `json:"is_write_index"`
+		} `json:"aliases"`
+	}
+	if err := json.Unmarshal(BuildBody("products-build"), &b); err != nil {
+		t.Fatalf("BuildBody is not JSON: %v", err)
+	}
+	if b.Settings["refresh_interval"] != "-1" || b.Settings["gc_deletes"] != "10m" {
+		t.Errorf("settings %v", b.Settings)
+	}
+	a, ok := b.Aliases["products-build"]
+	if !ok || len(b.Aliases) != 1 {
+		t.Fatalf("aliases %v, want only products-build", b.Aliases)
+	}
+	if a.IsWriteIndex == nil || !*a.IsWriteIndex {
+		t.Error("products-build must be created with is_write_index: true")
+	}
+}
+
 func TestWaitForSucceedsAfterRetries(t *testing.T) {
 	calls := 0
 	err := WaitFor(context.Background(), func(context.Context) error {

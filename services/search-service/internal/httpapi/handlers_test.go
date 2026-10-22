@@ -28,6 +28,7 @@ type fakeIndexer struct {
 	err      error
 	upserted []catalog.Product
 	deleted  []string
+	versions []int64
 	bulked   []catalog.Product
 }
 
@@ -36,9 +37,10 @@ func (f *fakeIndexer) Upsert(_ context.Context, p catalog.Product) (indexer.Outc
 	return f.outcome, f.err
 }
 
-func (f *fakeIndexer) Delete(_ context.Context, id string) error {
+func (f *fakeIndexer) Delete(_ context.Context, id string, version int64) (indexer.Outcome, error) {
 	f.deleted = append(f.deleted, id)
-	return f.err
+	f.versions = append(f.versions, version)
+	return f.outcome, f.err
 }
 
 func (f *fakeIndexer) Bulk(_ context.Context, ps []catalog.Product) (indexer.BulkResult, error) {
@@ -240,13 +242,35 @@ func TestPutProductErrors(t *testing.T) {
 }
 
 func TestDeleteProduct(t *testing.T) {
-	x := &fakeIndexer{}
-	rec := do(t, Deps{Indexer: x}, http.MethodDelete, "/products/a", "")
-	if rec.Code != 204 || rec.Body.Len() != 0 || len(x.deleted) != 1 || x.deleted[0] != "a" {
-		t.Fatalf("got %d %q %v", rec.Code, rec.Body, x.deleted)
+	for _, outcome := range []indexer.Outcome{indexer.Deleted, indexer.Skipped} {
+		x := &fakeIndexer{outcome: outcome}
+		rec := do(t, Deps{Indexer: x}, http.MethodDelete, "/products/a?version=1792576800123", "")
+		if rec.Code != 204 || rec.Body.Len() != 0 || len(x.deleted) != 1 || x.deleted[0] != "a" {
+			t.Fatalf("%s: got %d %q %v", outcome, rec.Code, rec.Body, x.deleted)
+		}
 	}
-	if rec := do(t, Deps{Indexer: &fakeIndexer{err: unavailable}}, http.MethodDelete, "/products/a", ""); rec.Code != 503 {
+	if rec := do(t, Deps{Indexer: &fakeIndexer{err: unavailable}}, http.MethodDelete, "/products/a?version=1", ""); rec.Code != 503 {
 		t.Fatalf("unavailable: %d", rec.Code)
+	}
+}
+
+func TestDeleteRequiresVersion(t *testing.T) {
+	for _, q := range []string{"", "?version=", "?version=abc", "?version=0", "?version=-1", "?version=1.5", "?version=99999999999999999999"} {
+		t.Run(q, func(t *testing.T) {
+			x := &fakeIndexer{}
+			rec := do(t, Deps{Indexer: x}, http.MethodDelete, "/products/a"+q, "")
+			if rec.Code != 400 || errorOf(t, rec) != "version must be a positive integer (ms)" {
+				t.Fatalf("got %d %s", rec.Code, rec.Body)
+			}
+			if len(x.deleted) != 0 {
+				t.Fatal("a rejected request must not reach the indexer")
+			}
+		})
+	}
+	x := &fakeIndexer{outcome: indexer.Deleted}
+	rec := do(t, Deps{Indexer: x}, http.MethodDelete, "/products/a?version=1792576800123", "")
+	if rec.Code != 204 || len(x.versions) != 1 || x.versions[0] != 1792576800123 {
+		t.Fatalf("got %d, versions %v", rec.Code, x.versions)
 	}
 }
 

@@ -100,14 +100,46 @@ describe('products (e2e)', () => {
       .send({ sku: other.body.sku })
       .expect(409);
     await http.delete(`/products/${other.body.id}`).expect(204);
-    expect(fake.calls).toContainEqual({
-      method: 'DELETE',
-      path: `/products/${other.body.id}`,
-      body: undefined,
-    });
+    // Versioned (ADR-0007): later than the deleted row's last upsert.
+    const deleteCall = fake.calls.find(
+      (c) =>
+        c.method === 'DELETE' &&
+        c.path.startsWith(`/products/${other.body.id}?`),
+    );
+    const version = Number(
+      new URL(deleteCall?.path ?? '', fake.url).searchParams.get('version'),
+    );
+    expect(version).toBeGreaterThan(Date.parse(other.body.updatedAt));
 
+    // Alias-swap reindex: start a build, bulk into it, finish (swap).
     const reindexed = await http.post('/admin/reindex').expect(200);
-    expect(reindexed.body.indexed).toEqual(expect.any(Number));
+    expect(reindexed.body).toMatchObject({
+      indexed: expect.any(Number),
+      skipped: 0,
+      failed: [],
+      swapped: true,
+    });
+    const reindexCalls = fake.calls.filter((c) =>
+      c.path.startsWith('/reindex/'),
+    );
+    const build = (reindexCalls[1]?.body as { build: string }).build;
+    expect(reindexCalls.map((c) => c.path)).toEqual([
+      '/reindex/start',
+      ...reindexCalls.slice(1, -1).map(() => '/reindex/_bulk'),
+      '/reindex/finish',
+    ]);
+    expect(reindexCalls.length).toBeGreaterThan(2);
+    expect(reindexCalls.slice(1).map((c) => c.body)).toEqual(
+      reindexCalls.slice(1).map(() => expect.objectContaining({ build })),
+    );
+    expect(fake.build).toBeUndefined();
+
+    // Another reindex is already running: 409, and ours never touches its build.
+    fake.build = 'products-v99';
+    const running = await http.post('/admin/reindex').expect(409);
+    expect(running.body.message).toBe('a reindex is already running');
+    expect(fake.build).toBe('products-v99');
+    fake.build = undefined;
 
     // search-service goes down: writes still succeed, search and reindex say 503.
     fake.status = 503;

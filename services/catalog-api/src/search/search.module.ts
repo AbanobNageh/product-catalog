@@ -1,7 +1,15 @@
 import { Module } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config/app-config';
-import { HttpSearchClient, HttpSearchIndexer } from './http-search';
-import { SEARCH_CLIENT, SEARCH_INDEXER } from './search.ports';
+import {
+  HttpSearchClient,
+  HttpSearchIndexer,
+  HttpSearchReindexer,
+} from './http-search';
+import {
+  SEARCH_CLIENT,
+  SEARCH_INDEXER,
+  SEARCH_REINDEXER,
+} from './search.ports';
 
 /** Binds the search ports to search-service over HTTP. */
 @Module({
@@ -13,12 +21,18 @@ import { SEARCH_CLIENT, SEARCH_INDEXER } from './search.ports';
       inject: [APP_CONFIG],
     },
     {
+      provide: SEARCH_REINDEXER,
+      useFactory: (config: AppConfig) =>
+        new HttpSearchReindexer(config.searchServiceUrl),
+      inject: [APP_CONFIG],
+    },
+    {
       provide: SEARCH_CLIENT,
       useFactory: (config: AppConfig) =>
         new HttpSearchClient(config.searchServiceUrl),
       inject: [APP_CONFIG],
     },
   ],
-  exports: [SEARCH_INDEXER, SEARCH_CLIENT],
+  exports: [SEARCH_INDEXER, SEARCH_REINDEXER, SEARCH_CLIENT],
 })
 export class SearchModule {}

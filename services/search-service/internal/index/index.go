@@ -19,15 +19,17 @@ import (
 // callTimeout bounds each OpenSearch call made here.
 const callTimeout = 2 * time.Second
 
-// Names are the concrete index and the alias in front of it. Tests use
-// throwaway names so they never touch the real index.
+// Names are the first concrete index, the live alias in front of it, and the
+// build alias that points at the index a reindex is building (ADR-0007).
+// Tests use throwaway names so they never touch the real index.
 type Names struct {
-	Index string
-	Alias string
+	Index      string
+	Alias      string
+	BuildAlias string
 }
 
 // Default is the index the service runs on.
-var Default = Names{Index: "products-v1", Alias: "products"}
+var Default = Names{Index: "products-v1", Alias: "products", BuildAlias: "products-build"}
 
 // ErrAliasMissing means the alias doesn't exist, so search and writes can't
 // work. Callers turn it into a 503.
@@ -36,8 +38,14 @@ var ErrAliasMissing = errors.New("search alias missing")
 // Body is the create-index request: settings, mapping and the alias, so the
 // index and its alias appear in one atomic call.
 func Body(alias string) []byte {
+	return body(alias, "", "")
+}
+
+// body is Body with extra index settings, given as JSON members that follow
+// a comma, and the alias's properties, given as JSON members.
+func body(alias, extraSettings, aliasProps string) []byte {
 	return fmt.Appendf(nil, `{
-  "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+  "settings": {"number_of_shards": 1, "number_of_replicas": 0%s},
   "mappings": {
     "dynamic": "strict",
     "properties": {
@@ -55,8 +63,8 @@ func Body(alias string) []byte {
       "updated_at":  {"type": "date"}
     }
   },
-  "aliases": {%q: {}}
-}`, alias)
+  "aliases": {%q: {%s}}
+}`, extraSettings, alias, aliasProps)
 }
 
 // Ensure makes sure the alias exists, creating the index with it if needed.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/catalog"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/indexer"
@@ -67,8 +68,16 @@ func (s *server) putProduct(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"result": outcome})
 }
 
+// deleteProduct removes one product at ?version= (Unix ms, later than its
+// last upsert), so a stale copy written later can't bring it back
+// (ADR-0007). A delete skipped because a newer upsert won is still a 204.
 func (s *server) deleteProduct(w http.ResponseWriter, r *http.Request) {
-	if err := s.deps.Indexer.Delete(r.Context(), r.PathValue("id")); err != nil {
+	version, err := strconv.ParseInt(r.URL.Query().Get("version"), 10, 64)
+	if err != nil || version <= 0 {
+		writeError(w, http.StatusBadRequest, "version must be a positive integer (ms)")
+		return
+	}
+	if _, err := s.deps.Indexer.Delete(r.Context(), r.PathValue("id"), version); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -79,23 +88,41 @@ func (s *server) deleteProduct(w http.ResponseWriter, r *http.Request) {
 // or wrongly typed field is reported for that item rather than rejecting the
 // batch; only a malformed body is a 400.
 func (s *server) bulk(w http.ResponseWriter, r *http.Request) {
+	_, products, undecodable, ok := decodeBulk(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.deps.Indexer.Bulk(r.Context(), products)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	result.Failed = append(result.Failed, undecodable...)
+	writeJSON(w, http.StatusOK, result)
+}
+
+// decodeBulk reads a bulk body, {"products": [...]} plus an optional "build"
+// (used by the reindex endpoints), and decodes each product on its own. It
+// returns the good products and a failure for each one that didn't decode.
+// On a bad body it writes the 400 or 413 and returns ok=false.
+func decodeBulk(w http.ResponseWriter, r *http.Request) (build string, products []catalog.Product, undecodable []indexer.Failure, ok bool) {
 	var body struct {
+		Build    string             `json:"build"`
 		Products *[]json.RawMessage `json:"products"`
 	}
 	if !decode(w, r, maxBulkBytes, &body) {
-		return
+		return "", nil, nil, false
 	}
 	if body.Products == nil {
 		writeError(w, http.StatusBadRequest, `body must be {"products": [...]}`)
-		return
+		return "", nil, nil, false
 	}
 	if n := len(*body.Products); n > maxBulkProducts {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d products per request, got %d", maxBulkProducts, n))
-		return
+		return "", nil, nil, false
 	}
 
-	products := make([]catalog.Product, 0, len(*body.Products))
-	var undecodable []indexer.Failure
+	products = make([]catalog.Product, 0, len(*body.Products))
 	for _, raw := range *body.Products {
 		p, err := catalog.DecodeProduct(raw)
 		if err != nil {
@@ -104,14 +131,7 @@ func (s *server) bulk(w http.ResponseWriter, r *http.Request) {
 		}
 		products = append(products, p)
 	}
-
-	result, err := s.deps.Indexer.Bulk(r.Context(), products)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	result.Failed = append(result.Failed, undecodable...)
-	writeJSON(w, http.StatusOK, result)
+	return body.Build, products, undecodable, true
 }
 
 // idOf reads the id of a product that failed to decode, so its failure can

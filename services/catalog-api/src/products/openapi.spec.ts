@@ -7,7 +7,7 @@ import { ProductsService } from './products.service';
 // The OpenAPI document is the contract (.claude/rules/services.md): every
 // status an endpoint can return must be in it.
 describe('OpenAPI document', () => {
-  const responses = async (path: string, method: 'get' | 'post') => {
+  const document = async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [ProductsController, AdminController],
       providers: [{ provide: ProductsService, useValue: {} }],
@@ -18,8 +18,11 @@ describe('OpenAPI document', () => {
       new DocumentBuilder().build(),
     );
     await app.close();
-    return Object.keys(doc.paths[path][method]?.responses ?? {});
+    return doc;
   };
+
+  const responses = async (path: string, method: 'get' | 'post') =>
+    Object.keys((await document()).paths[path][method]?.responses ?? {});
 
   it('documents the search validation 400 alongside 200 and 503', async () => {
     expect(await responses('/products/search', 'get')).toEqual(
@@ -27,9 +30,29 @@ describe('OpenAPI document', () => {
     );
   });
 
-  it('documents the reindex 500 for failures that are not search-service', async () => {
+  it('documents the reindex 409 and 500 alongside 200 and 503', async () => {
     expect(await responses('/admin/reindex', 'post')).toEqual(
-      expect.arrayContaining(['200', '500', '503']),
+      expect.arrayContaining(['200', '409', '500', '503']),
     );
+  });
+
+  it('says a reindex 503 may already have swapped and is safe to rerun', async () => {
+    const res = (await document()).paths['/admin/reindex'].post?.responses[
+      '503'
+    ] as { description?: string };
+    expect(res.description).toContain('may already have swapped');
+    expect(res.description).toContain('running it again is safe');
+  });
+
+  it('documents whether the reindex swapped', async () => {
+    const schema = (await document()).components?.schemas?.ReindexResponse as {
+      required?: string[];
+      properties?: Record<string, { type?: string; description?: string }>;
+    };
+    expect(schema.required).toContain('swapped');
+    expect(schema.properties?.swapped).toMatchObject({
+      type: 'boolean',
+      description: 'false when items failed; the old index is still live',
+    });
   });
 });

@@ -5,13 +5,21 @@ import type {
   SearchClient,
   SearchIndexer,
   SearchQuery,
+  SearchReindexer,
   SearchResult,
 } from './search.ports';
 
 export interface SearchTimeouts {
   /** Single calls: search, upsert, remove. */
   requestMs: number;
-  /** Bulk: at least search-service's own 10s bulk deadline, so its 503 arrives first. */
+  /**
+   * Reindex calls (start, bulk, finish, abort). search-service bounds each
+   * OpenSearch call at 10s, but start, bulk and finish chain several, so this
+   * timeout can fire first. That is safe: every call after start names its
+   * build, so a call that lands late can't touch another run's build. A start
+   * that times out may still have created a build, which blocks the next
+   * reindex until it is 10 minutes old.
+   */
   bulkMs: number;
 }
 
@@ -39,23 +47,68 @@ export class HttpSearchIndexer implements SearchIndexer {
     );
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, version: number): Promise<void> {
     await callSearchService(
       'DELETE',
-      productUrl(this.baseUrl, id),
+      `${productUrl(this.baseUrl, id)}?version=${version}`,
       undefined,
       this.timeouts.requestMs,
     );
   }
+}
 
-  async bulkUpsert(products: ProductResponse[]): Promise<BulkIndexResult> {
-    const result = await callSearchService<BulkIndexResult>(
+/** The reindex lifecycle over HTTP. All four calls get the longer reindex timeout; no retries. */
+export class HttpSearchReindexer implements SearchReindexer {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly timeouts: SearchTimeouts = SEARCH_TIMEOUTS,
+  ) {}
+
+  async start(): Promise<string> {
+    const result = await callSearchService<{ build?: string }>(
       'POST',
-      `${this.baseUrl}/products/_bulk`,
-      { products },
+      `${this.baseUrl}/reindex/start`,
+      undefined,
       this.timeouts.bulkMs,
     );
-    return result ?? { indexed: 0, skipped: 0, failed: [] };
+    if (!result?.build)
+      throw new Error(
+        'search-service returned an empty reindex start response',
+      );
+    return result.build;
+  }
+
+  async bulk(
+    build: string,
+    products: ProductResponse[],
+  ): Promise<BulkIndexResult> {
+    const result = await callSearchService<BulkIndexResult>(
+      'POST',
+      `${this.baseUrl}/reindex/_bulk`,
+      { build, products },
+      this.timeouts.bulkMs,
+    );
+    if (!result)
+      throw new Error('search-service returned an empty bulk response');
+    return result;
+  }
+
+  async finish(build: string): Promise<void> {
+    await callSearchService(
+      'POST',
+      `${this.baseUrl}/reindex/finish`,
+      { build },
+      this.timeouts.bulkMs,
+    );
+  }
+
+  async abort(build: string): Promise<void> {
+    await callSearchService(
+      'POST',
+      `${this.baseUrl}/reindex/abort`,
+      { build },
+      this.timeouts.bulkMs,
+    );
   }
 }
 

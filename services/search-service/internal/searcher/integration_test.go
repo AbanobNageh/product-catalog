@@ -31,7 +31,7 @@ func setup(t *testing.T) *searcher.Searcher {
 	ctx := context.Background()
 	c := ittest.Client(t)
 	n := ittest.Index(t, c)
-	x := indexer.New(c, n.Alias, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	x := indexer.New(c, n, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	res, err := x.Bulk(ctx, []catalog.Product{
 		p("p1", "Acme Phone", "electronics", "Acme", 15000, 3),
 		p("p2", "Zed Phone Mini", "electronics", "Zed", 8000, 0),

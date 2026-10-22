@@ -21,8 +21,16 @@ import (
 // Indexer writes products to the index.
 type Indexer interface {
 	Upsert(ctx context.Context, p catalog.Product) (indexer.Outcome, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string, version int64) (indexer.Outcome, error)
 	Bulk(ctx context.Context, ps []catalog.Product) (indexer.BulkResult, error)
+}
+
+// Reindexer runs the build side of an alias-swap reindex (ADR-0007).
+type Reindexer interface {
+	Start(ctx context.Context) (string, error)
+	Bulk(ctx context.Context, build string, ps []catalog.Product) (indexer.BulkResult, error)
+	Finish(ctx context.Context, build string) error
+	Abort(ctx context.Context, build string) error
 }
 
 // Searcher runs searches.
@@ -32,8 +40,9 @@ type Searcher interface {
 
 // Deps is what the handlers need from the rest of the service.
 type Deps struct {
-	Indexer  Indexer
-	Searcher Searcher
+	Indexer   Indexer
+	Reindexer Reindexer
+	Searcher  Searcher
 	// Ready returns nil when OpenSearch answers and the alias exists.
 	Ready func(ctx context.Context) error
 }
@@ -51,6 +60,10 @@ func NewServer(deps Deps, log *slog.Logger) http.Handler {
 	mux.HandleFunc("PUT /products/{id}", s.putProduct)
 	mux.HandleFunc("DELETE /products/{id}", s.deleteProduct)
 	mux.HandleFunc("POST /products/_bulk", s.bulk)
+	mux.HandleFunc("POST /reindex/start", s.reindexStart)
+	mux.HandleFunc("POST /reindex/_bulk", s.reindexBulk)
+	mux.HandleFunc("POST /reindex/finish", s.reindexFinish)
+	mux.HandleFunc("POST /reindex/abort", s.reindexAbort)
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
 	return s.logRequests(mux)
@@ -70,10 +83,15 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// fail maps an error from the indexer or searcher to a response: 503 when
+// fail maps an error from the indexer, reindexer or searcher to a response:
+// 409 for a running or vanished build, 503 when
 // OpenSearch can't serve, nothing when the client has gone, 500 otherwise.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, index.ErrBuildRunning):
+		writeError(w, http.StatusConflict, index.ErrBuildRunning.Error())
+	case errors.Is(err, index.ErrBuildGone):
+		writeError(w, http.StatusConflict, index.ErrBuildGone.Error())
 	case errors.Is(err, osclient.ErrUnavailable), errors.Is(err, index.ErrAliasMissing):
 		s.log.Warn("search backend unavailable", "path", r.URL.Path, "err", err)
 		writeError(w, http.StatusServiceUnavailable, "search is unavailable: "+rootCause(err))

@@ -77,4 +77,10 @@ export class ReindexResponse implements BulkIndexResult {
     description: 'Products search-service could not index; reindex them later',
   })
   failed: ReindexFailureResponse[];
+
+  @ApiProperty({
+    description: 'false when items failed; the old index is still live',
+    example: true,
+  })
+  swapped: boolean;
 }

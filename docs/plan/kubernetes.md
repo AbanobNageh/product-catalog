@@ -49,7 +49,7 @@ How each module runs: `.claude/skills/teach-module/SKILL.md`. Known pitfalls (in
   - Resource requests and limits (and how they relate to JVM heap)
   - Service-to-service calls inside the cluster
 - **Do:**
-  - Run a single-node OpenSearch as a StatefulSet (security plugin disabled, 512 MB heap, limits set).
+  - Run a single-node OpenSearch as a StatefulSet (security plugin disabled, 512 MB heap, limits set). It needs the `action.auto_create_index` setting from [ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md), or search-service won't start.
   - Deploy search-service.
   - Point catalog-api at it, run the seed (as a Job or with `kubectl exec`), and search.
 - **Done when:** the full app works inside the cluster through `port-forward`.

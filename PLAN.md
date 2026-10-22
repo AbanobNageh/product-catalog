@@ -15,6 +15,7 @@ Plan written 2026-10-21. The same day it was split into the files below ([ADR-00
 Instructions for the AI assistant: [AGENTS.md](AGENTS.md). How the AI context system works: [docs/ai-workflow.md](docs/ai-workflow.md).
 
 ## Portfolio and honesty
+- **The README is the last step of the whole project,** after T5. Nothing is pushed to GitHub until then. It opens with a short part for recruiters (what the repo is for, what the AI did, what I did, each claim linked to its proof), followed by the technical part for engineers.
 - The README should show:
   - the architecture diagram
   - how to run it (Compose, kind + Helm, Terraform)

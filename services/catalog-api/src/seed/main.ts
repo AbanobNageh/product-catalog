@@ -54,20 +54,47 @@ async function seed(): Promise<number> {
   });
 
   logger.log('reindex started', { url: `${apiUrl}/admin/reindex` });
-  const res = await fetch(`${apiUrl}/admin/reindex`, {
-    method: 'POST',
-    signal: AbortSignal.timeout(REINDEX_TIMEOUT_MS),
-  });
-  const body = (await res.json()) as { failed?: unknown[] };
+  let res: Response;
+  let text: string;
+  try {
+    res = await fetch(`${apiUrl}/admin/reindex`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(REINDEX_TIMEOUT_MS),
+    });
+    text = await res.text();
+  } catch (err) {
+    const cause = (err as { cause?: { code?: string; message?: string } })
+      .cause;
+    logger.error('reindex request failed', {
+      url: `${apiUrl}/admin/reindex`,
+      err: String(err),
+      cause: cause?.code ?? cause?.message,
+    });
+    return 1;
+  }
+  let body: unknown = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // keep the raw text
+  }
   if (!res.ok) {
     logger.error('reindex failed', { status: res.status, body });
     return 1;
   }
-  if (body.failed && body.failed.length > 0) {
-    logger.error('reindex finished with failed items', body);
+  const result = (typeof body === 'object' && body !== null ? body : {}) as {
+    failed?: unknown[];
+    swapped?: boolean;
+  };
+  if (result.failed && result.failed.length > 0) {
+    logger.error('reindex finished with failed items', result);
     return 1;
   }
-  logger.log('reindex complete', body);
+  if (result.swapped === false) {
+    logger.error('reindex did not swap', result);
+    return 1;
+  }
+  logger.log('reindex complete', result);
   return 0;
 }
 

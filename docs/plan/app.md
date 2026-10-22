@@ -59,7 +59,7 @@ Endpoints:
 | PATCH | /products/:id | update, invalidate the cache, re-index |
 | DELETE | /products/:id | delete, invalidate the cache, remove from the index |
 | GET | /products/search?q&category&brand&minPrice&maxPrice&inStock&sort&page&size | proxies to search-service; caches results in Redis for 60s, keyed by the normalised query; any product write invalidates cached search results |
-| POST | /admin/reindex | pages through Postgres and sends products in bulk to search-service |
+| POST | /admin/reindex | builds a fresh index from Postgres and swaps it in, while writes keep working ([ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md)); 409 if one is already running |
 | GET | /healthz | liveness: the process is up (no dependency checks) |
 | GET | /readyz | readiness: Postgres and Redis reachable |
 
@@ -80,8 +80,12 @@ Endpoints:
 |---|---|---|
 | GET | /search | same query params as above; returns hits, total, and facets |
 | PUT | /products/{id} | index or replace one product |
-| DELETE | /products/{id} | remove one product |
-| POST | /products/_bulk | bulk index (used by reindex) |
+| DELETE | /products/{id}?version= | remove one product; `version` (ms, required) makes the delete versioned, so a stale bulk copy can't bring it back |
+| POST | /products/_bulk | bulk index into the live alias |
+| POST | /reindex/start | create the build index behind the `products-build` alias; returns its name; 409 if a fresh build exists |
+| POST | /reindex/_bulk | bulk index into the named build index |
+| POST | /reindex/finish | refresh, swap `products` to the build index atomically, drop the old index |
+| POST | /reindex/abort | detach the named build from `products-build`; the next start deletes it. 204 even if it's already gone |
 | GET | /healthz | liveness |
 | GET | /readyz | readiness: OpenSearch reachable and index exists |
 
@@ -89,6 +93,7 @@ Endpoints:
 - **Bulk with failed items** returns `200` with `{ "indexed": n, "skipped": n, "failed": [{ "id", "status", "reason" }] }`. `skipped` counts stale versions that were deliberately ignored, and `failed` lists what to reindex. A bad request body returns `400`. OpenSearch unreachable or timing out returns `503`.
 
 - **On startup:** create index `products-v1` with an explicit mapping, plus an alias `products`, if they don't exist. All reads and writes go through the alias.
+- **Reindex** ([ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md), from 1.5): while `products-build` exists, every single-product write goes to the build index first, then to the live one. OpenSearch must run with `action.auto_create_index: "-products*,+*"`; search-service refuses to start without it.
 - **Mapping:**
   - `name`: text, with a `.keyword` subfield
   - `description`: text
@@ -177,6 +182,13 @@ product-catalog/
   - Reindex fixes the index afterwards.
 
 **1.5 Polish**
-- Finish the README: how to run it, the architecture diagram, and the trade-offs.
+- The alias-swap reindex that keeps taking writes ([ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md)), including versioned deletes and the `action.auto_create_index` guard.
 - Images tagged `0.1.0`.
-- **Done when:** a stranger could run it from the README alone.
+- The deferred review minors from the [1.4 note](../milestones/2026-10-22-1.4-wire-up-compose.md#follow-ups).
+- The README moved to the last step of the whole project (see [PLAN.md](../../PLAN.md)).
+- **Done when:**
+  - While a reindex of the 10k products runs, CRUD keeps working. After the swap, a product updated mid-reindex shows its new value in search, one deleted mid-reindex is gone, and one created mid-reindex is findable.
+  - A product deleted while search-service was down is gone from search after reindex.
+  - A full reindex of 10k products takes a few seconds, not 21s.
+  - An integration test proves a stale bulk write can't bring back a product deleted during the build.
+  - `docker compose up --build` produces `catalog-api:0.1.0` and `search-service:0.1.0`, and the stack comes up healthy.
