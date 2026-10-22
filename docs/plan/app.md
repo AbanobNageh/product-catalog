@@ -72,7 +72,7 @@ Endpoints:
 
 ## search-service (Go 1.26)
 
-Built with the standard library `net/http` (Go 1.22+ routing patterns), the official `opensearch-go` client (v4), and `log/slog` JSON logs. Avoid frameworks.
+Built with the standard library `net/http` (Go 1.22+ routing patterns), the official `opensearch-go` client (v5, [ADR-0005](../adr/0005-opensearch-go-v5.md)), and `log/slog` JSON logs. Avoid frameworks.
 
 Endpoints:
 
@@ -85,6 +85,9 @@ Endpoints:
 | GET | /healthz | liveness |
 | GET | /readyz | readiness: OpenSearch reachable and index exists |
 
+- **JSON is camelCase** and matches catalog-api's `SearchResult` and `ProductResponse` types exactly, so catalog-api can pass results through. Field names inside OpenSearch are snake_case.
+- **Bulk with failed items** returns `200` with `{ "indexed": n, "skipped": n, "failed": [{ "id", "status", "reason" }] }`. `skipped` counts stale versions that were deliberately ignored, and `failed` lists what to reindex. A bad request body returns `400`. OpenSearch unreachable or timing out returns `503`.
+
 - **On startup:** create index `products-v1` with an explicit mapping, plus an alias `products`, if they don't exist. All reads and writes go through the alias.
 - **Mapping:**
   - `name`: text, with a `.keyword` subfield
@@ -93,10 +96,13 @@ Endpoints:
   - `price_cents` and `stock`: integer
   - `in_stock`: boolean, derived from stock
   - `created_at`: date
+  - also stored so hits return whole products: `id`, `sku` and `currency` as keyword, `updated_at` as date
 - **Query:**
   - `multi_match` on `name^3` and `description`, with `fuzziness: AUTO`
   - filters (category, brand, price range, in_stock) in a `bool.filter`
   - facets: `terms` aggregations on category and brand, plus a `range` aggregation on price buckets
+  - facets count only the filtered results
+  - price buckets in EGP (stored as cents): under 100, 100–500, 500–2,000, 2,000–10,000, and 10,000+. They're one constant, so they're easy to change later.
 - **Keep the query builder a pure function** (params in, OpenSearch request body out) so it can be unit-tested with table-driven tests.
 
 ## Requirements for both services (these make Part 2 work)

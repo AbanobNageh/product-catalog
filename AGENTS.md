@@ -36,6 +36,16 @@ catalog-api (`services/catalog-api`):
 - Image (from the repo root): `docker build -t catalog-api:dev services/catalog-api`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 3000:3000 -e DATABASE_URL=postgresql://catalog:catalog@postgres:5432/catalog -e REDIS_URL=redis://redis:6379/0 catalog-api:dev`
 - Prisma's update notice suggests `prisma@latest`. Ignore it: that tag is an 8.0 RC, and we stay pinned to 7.10.1 (ADR-0004)
 
+search-service (`services/search-service`):
+- Start OpenSearch: `docker compose up -d opensearch` (from the repo root). It takes about 30s to become `healthy`. The performance-analyzer `ERROR` lines in its log are harmless. The image is pinned to `3.9.0`: `latest` is the 2.19 line (ADR-0005)
+- Run: `go run ./cmd/search-service`. Env: `PORT` (8080), `OPENSEARCH_URL` (`http://localhost:9200`), `LOG_LEVEL` (`info`). The defaults suit a native run, so no env file is needed. Example: `$env:LOG_LEVEL='debug'; go run ./cmd/search-service`
+- Unit tests: `go test ./...`
+- Integration tests: `go test -tags integration ./...`. Needs Compose OpenSearch. Each test uses its own throwaway `it-<random>` index and deletes it afterwards; `products-v1` is never touched
+- Vet / format: `go vet ./...` / `gofmt -l .` (prints nothing when clean; `gofmt -w .` fixes)
+- Load the sample data (30 products). The `@` path is relative, so change directory first: `Set-Location D:\Projects\product-catalog\services\search-service; curl.exe -s -X POST localhost:8080/products/_bulk -H "Content-Type: application/json" --data-binary "@testdata/sample-products.json"`
+- Try a search: `curl.exe -s "localhost:8080/search?q=phone&category=electronics&minPrice=10000&inStock=true&sort=price_asc"`
+- Image (from the repo root): `docker build -t search-service:dev services/search-service`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 8080:8080 -e OPENSEARCH_URL=http://opensearch:9200 search-service:dev`
+
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** the AI writes the code, one milestone at a time, and stops at each milestone's "Done when" check for my review. At the end of each milestone it gives a short tour (files, key decisions) I could repeat in an interview.
 - **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** I write every manifest, chart and HCL file. The AI teaches, hints, reviews and quizzes, following `.claude/skills/teach-module/SKILL.md`. It never writes the solution unless I ask for it.

@@ -1,5 +1,5 @@
-# Local run for Part 1. Milestone 1.2 has Postgres and Redis only; 1.4 adds
-# the two services and OpenSearch.
+# Local run for Part 1. 1.2 added Postgres and Redis, 1.3 adds OpenSearch;
+# 1.4 adds the two services.
 name: product-catalog
 
 services:
@@ -31,5 +31,33 @@ services:
       timeout: 3s
       retries: 10
 
+  opensearch:
+    # Pinned: the `latest` tag points at the 2.19 line, not 3.x (ADR-0005).
+    image: opensearchproject/opensearch:3.9.0
+    environment:
+      discovery.type: single-node
+      # Local only. With the security plugin off, no admin password is needed.
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
 volumes:
   postgres-data:
+  opensearch-data:
