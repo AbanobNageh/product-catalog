@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/config"
+	"github.com/AbanobNageh/product-catalog/services/search-service/internal/healthcheck"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/httpapi"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/index"
 	"github.com/AbanobNageh/product-catalog/services/search-service/internal/indexer"
@@ -29,10 +30,33 @@ const (
 	// startupWait bounds how long we wait for OpenSearch before exiting 1.
 	startupWait       = 30 * time.Second
 	startupRetryEvery = 2 * time.Second
+	// healthcheckTimeout sits above /readyz's own 2s OpenSearch budget.
+	healthcheckTimeout = 3 * time.Second
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck())
+	}
 	os.Exit(run())
+}
+
+// runHealthcheck probes this container's own /readyz, for the Compose
+// healthcheck (the distroless image has no curl). Exit 0 healthy, 1 not.
+func runHealthcheck() int {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)
+	defer cancel()
+	url := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.Port)) + "/readyz"
+	if err := healthcheck.Check(ctx, http.DefaultClient, url); err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	return 0
 }
 
 func run() int {

@@ -1,12 +1,23 @@
 import { Module } from '@nestjs/common';
+import { APP_CONFIG, type AppConfig } from '../config/app-config';
+import { HttpSearchClient, HttpSearchIndexer } from './http-search';
 import { SEARCH_CLIENT, SEARCH_INDEXER } from './search.ports';
-import { LoggingSearchIndexer, UnavailableSearchClient } from './stub-search';
 
-/** Binds the search ports. 1.4 swaps the stubs for HTTP implementations. */
+/** Binds the search ports to search-service over HTTP. */
 @Module({
   providers: [
-    { provide: SEARCH_INDEXER, useClass: LoggingSearchIndexer },
-    { provide: SEARCH_CLIENT, useClass: UnavailableSearchClient },
+    {
+      provide: SEARCH_INDEXER,
+      useFactory: (config: AppConfig) =>
+        new HttpSearchIndexer(config.searchServiceUrl),
+      inject: [APP_CONFIG],
+    },
+    {
+      provide: SEARCH_CLIENT,
+      useFactory: (config: AppConfig) =>
+        new HttpSearchClient(config.searchServiceUrl),
+      inject: [APP_CONFIG],
+    },
   ],
   exports: [SEARCH_INDEXER, SEARCH_CLIENT],
 })

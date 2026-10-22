@@ -50,6 +50,9 @@ export class ProductsController {
   // Declared before ':id' so "search" isn't treated as an id.
   @Get('search')
   @ApiOkResponse({ type: SearchResultResponse, description: 'Cached for 60s; any product write invalidates' })
+  @ApiBadRequestResponse({
+    description: 'Invalid query: q over 200 characters, page × size over 10000, maxPrice below minPrice, or a bad value',
+  })
   @ApiServiceUnavailableResponse({ description: 'search-service is unavailable' })
   search(@Query() query: SearchProductsQuery): Promise<SearchResultResponse> {
     return this.products.search(query);

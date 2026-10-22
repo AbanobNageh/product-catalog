@@ -7,12 +7,48 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
+  ValidateBy,
 } from 'class-validator';
 import type { SearchQuery, SearchSort } from '../../search/search.ports';
 import { INT4_MAX } from './create-product.dto';
 
 const SORTS: readonly SearchSort[] = ['relevance', 'price_asc', 'price_desc', 'newest'];
+
+// Limits search-service also enforces (internal/query/params.go). Checking them
+// here gives users catalog-api's own 400 instead of a forwarded error.
+const MAX_QUERY_CHARS = 200;
+/** OpenSearch's index.max_result_window: page × size beyond it fails. */
+const MAX_RESULT_WINDOW = 10000;
+
+/** page × size ≤ 10000. Skipped unless both are integers, so a bad page is reported once. */
+const WithinResultWindow = () =>
+  ValidateBy({
+    name: 'withinResultWindow',
+    validator: {
+      validate: (page: unknown, args) => {
+        const { size } = args?.object as SearchProductsQuery;
+        if (!Number.isInteger(page) || !Number.isInteger(size)) return true;
+        return (page as number) * size <= MAX_RESULT_WINDOW;
+      },
+      defaultMessage: () => `page × size must be at most ${MAX_RESULT_WINDOW}`,
+    },
+  });
+
+/** maxPrice ≥ minPrice when both are set. */
+const NotBelowMinPrice = () =>
+  ValidateBy({
+    name: 'notBelowMinPrice',
+    validator: {
+      validate: (maxPrice: unknown, args) => {
+        const { minPrice } = args?.object as SearchProductsQuery;
+        if (!Number.isInteger(maxPrice) || !Number.isInteger(minPrice)) return true;
+        return (maxPrice as number) >= (minPrice as number);
+      },
+      defaultMessage: () => 'maxPrice must not be less than minPrice',
+    },
+  });
 
 /**
  * Optional integer query parameter: blank means unset, plain digits become a
@@ -27,9 +63,14 @@ function toOptionalInt({ value }: { value: unknown }): unknown {
 }
 
 export class SearchProductsQuery implements SearchQuery {
-  @ApiPropertyOptional({ description: 'Full-text query on name and description' })
+  @ApiPropertyOptional({
+    description: 'Full-text query on name and description',
+    maxLength: MAX_QUERY_CHARS,
+  })
   @IsOptional()
   @IsString()
+  // UTF-16 length is never below search-service's rune count, so this is never looser.
+  @MaxLength(MAX_QUERY_CHARS)
   q?: string;
 
   @ApiPropertyOptional({ example: 'electronics' })
@@ -50,12 +91,13 @@ export class SearchProductsQuery implements SearchQuery {
   @Max(INT4_MAX)
   minPrice?: number;
 
-  @ApiPropertyOptional({ description: 'Maximum price in cents' })
+  @ApiPropertyOptional({ description: 'Maximum price in cents, at least minPrice' })
   @IsOptional()
   @Transform(toOptionalInt)
   @IsInt()
   @Min(0)
   @Max(INT4_MAX)
+  @NotBelowMinPrice()
   maxPrice?: number;
 
   @ApiPropertyOptional({ description: 'Only products with stock > 0' })
@@ -72,10 +114,15 @@ export class SearchProductsQuery implements SearchQuery {
   @IsIn(SORTS)
   sort: SearchSort = 'relevance';
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    default: 1,
+    minimum: 1,
+    description: `page × size must be at most ${MAX_RESULT_WINDOW}`,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @WithinResultWindow()
   page: number = 1;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })

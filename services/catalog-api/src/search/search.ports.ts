@@ -8,7 +8,22 @@ import type { ProductResponse } from '../products/dto/product.response';
 export interface SearchIndexer {
   upsert(product: ProductResponse): Promise<void>;
   remove(id: string): Promise<void>;
-  bulkUpsert(products: ProductResponse[]): Promise<void>;
+  /** Partial failures are reported in the result, not thrown. */
+  bulkUpsert(products: ProductResponse[]): Promise<BulkIndexResult>;
+}
+
+/** One product search-service could not index; reindex it later. */
+export interface BulkIndexFailure {
+  id: string;
+  status: number;
+  reason: string;
+}
+
+/** search-service's bulk answer. `skipped` counts stale versions it ignored on purpose. */
+export interface BulkIndexResult {
+  indexed: number;
+  skipped: number;
+  failed: BulkIndexFailure[];
 }
 
 /** Search queries go through this port. */

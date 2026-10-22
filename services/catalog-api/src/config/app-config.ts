@@ -6,8 +6,8 @@ export interface AppConfig {
   port: number;
   databaseUrl: string;
   redisUrl: string;
-  /** Optional until search-service is wired up in milestone 1.4. */
-  searchServiceUrl?: string;
+  /** Base URL of search-service, without a trailing slash. */
+  searchServiceUrl: string;
   logLevel: LogLevel;
 }
 
@@ -36,10 +36,18 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
 
   const databaseUrl = required('DATABASE_URL');
   const redisUrl = required('REDIS_URL');
+  const searchServiceUrl = required('SEARCH_SERVICE_URL').replace(/\/+$/, '');
+  if (searchServiceUrl && !isHttpUrl(searchServiceUrl)) {
+    errors.push(
+      `SEARCH_SERVICE_URL must be an http(s) URL with a host, got "${env.SEARCH_SERVICE_URL}"`,
+    );
+  }
 
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    errors.push(`PORT must be an integer between 1 and 65535, got "${env.PORT}"`);
+    errors.push(
+      `PORT must be an integer between 1 and 65535, got "${env.PORT}"`,
+    );
   }
 
   const logLevel = (env.LOG_LEVEL ?? 'log') as LogLevel;
@@ -57,7 +65,13 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     port,
     databaseUrl,
     redisUrl,
-    searchServiceUrl: env.SEARCH_SERVICE_URL || undefined,
+    searchServiceUrl,
     logLevel,
   };
+}
+
+function isHttpUrl(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const { protocol, host } = new URL(value);
+  return (protocol === 'http:' || protocol === 'https:') && host !== '';
 }

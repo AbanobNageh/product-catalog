@@ -1,5 +1,6 @@
 import { Controller, HttpCode, Post } from '@nestjs/common';
 import {
+  ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -15,8 +16,16 @@ export class AdminController {
   /** Rebuilds the search index from Postgres, for example after search-service was down. */
   @Post('reindex')
   @HttpCode(200)
-  @ApiOkResponse({ type: ReindexResponse })
-  @ApiServiceUnavailableResponse({ description: 'search-service is unavailable' })
+  @ApiOkResponse({
+    type: ReindexResponse,
+    description: '200 even when some items fail; see `failed`',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'search-service is unavailable',
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Failed for another reason, such as Postgres being down',
+  })
   reindex(): Promise<ReindexResponse> {
     return this.products.reindex();
   }

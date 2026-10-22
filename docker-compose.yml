@@ -1,5 +1,6 @@
-# Local run for Part 1. 1.2 added Postgres and Redis, 1.3 adds OpenSearch;
-# 1.4 adds the two services.
+# Local run for Part 1. 1.2 added Postgres and Redis, 1.3 OpenSearch; 1.4 adds
+# the two services, the one-shot migrate job and optional Dashboards.
+# Start everything: docker compose up --build -d
 name: product-catalog
 
 services:
@@ -57,6 +58,80 @@ services:
       timeout: 10s
       retries: 12
       start_period: 60s
+
+  # One-shot, like K3's migration Job: applies committed migrations, then exits.
+  # Built from the Dockerfile's `build` stage because the runtime image has no
+  # Prisma CLI (ADR-0003). Migrations never run at app startup.
+  migrate:
+    build:
+      context: services/catalog-api
+      target: build
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://catalog:catalog@postgres:5432/catalog
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  search-service:
+    build: services/search-service
+    image: search-service:dev
+    environment:
+      OPENSEARCH_URL: http://opensearch:9200
+      LOG_LEVEL: info
+    # No ports: internal only, reached by catalog-api on the Compose network.
+    healthcheck:
+      # Distroless has no shell or curl, so the binary probes its own /readyz.
+      test: ["CMD", "/search-service", "healthcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  catalog-api:
+    build: services/catalog-api
+    image: catalog-api:dev
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://catalog:catalog@postgres:5432/catalog
+      REDIS_URL: redis://redis:6379/0
+      SEARCH_SERVICE_URL: http://search-service:8080
+      LOG_LEVEL: log
+    healthcheck:
+      # busybox wget ships in node:24-alpine. /readyz checks Postgres and Redis
+      # only: search-service being down must not take catalog-api out (ADR-0001).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      search-service:
+        condition: service_healthy
+
+  # Optional UI for the index: docker compose --profile dashboards up -d
+  opensearch-dashboards:
+    profiles: [dashboards]
+    image: opensearchproject/opensearch-dashboards:3.9.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
 
 volumes:
   postgres-data:

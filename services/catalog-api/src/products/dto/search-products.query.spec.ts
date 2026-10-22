@@ -43,4 +43,44 @@ describe('SearchProductsQuery', () => {
   ])('rejects %s', async (_, query, property) => {
     await expect(invalid(query)).resolves.toEqual([property]);
   });
+
+  // The same limits search-service enforces, so users get catalog-api's own 400.
+  describe('limits shared with search-service', () => {
+    it.each([
+      ['q of 200 characters', { q: 'a'.repeat(200) }],
+      ['page × size of exactly 10000', { page: '500', size: '20' }],
+      ['minPrice equal to maxPrice', { minPrice: '100', maxPrice: '100' }],
+      ['minPrice without maxPrice', { minPrice: '500' }],
+    ])('accepts %s', async (_, query) => {
+      await expect(invalid(query)).resolves.toEqual([]);
+    });
+
+    it.each([
+      ['q of 201 characters', { q: 'a'.repeat(201) }, 'q'],
+      ['page × size over 10000 (501 × 20)', { page: '501', size: '20' }, 'page'],
+      ['page × size over 10000 (101 × 100)', { page: '101', size: '100' }, 'page'],
+      ['minPrice above maxPrice', { minPrice: '500', maxPrice: '100' }, 'maxPrice'],
+    ])('rejects %s', async (_, query, property) => {
+      await expect(invalid(query)).resolves.toEqual([property]);
+    });
+
+    it('reports an invalid page once, without a window error on top', async () => {
+      const errors = await validate(parse({ page: 'abc' }));
+      expect(errors.map((e) => e.property)).toEqual(['page']);
+      expect(Object.values(errors[0].constraints ?? {})).not.toContain(
+        'page × size must be at most 10000',
+      );
+    });
+
+    it('explains the window and price-range errors', async () => {
+      const [window] = await validate(parse({ page: '501', size: '20' }));
+      expect(Object.values(window.constraints ?? {})).toEqual([
+        'page × size must be at most 10000',
+      ]);
+      const [range] = await validate(parse({ minPrice: '500', maxPrice: '100' }));
+      expect(Object.values(range.constraints ?? {})).toEqual([
+        'maxPrice must not be less than minPrice',
+      ]);
+    });
+  });
 });

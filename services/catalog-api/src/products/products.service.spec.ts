@@ -9,6 +9,7 @@ import { Prisma, type Product } from '../generated/prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisCache } from '../redis/redis-cache';
 import { searchCacheKey } from '../search/search-cache-key';
+import { SearchServiceError } from '../search/search-service-fetch';
 import {
   SEARCH_VERSION_KEY,
   type SearchClient,
@@ -92,7 +93,7 @@ describe('ProductsService', () => {
     indexer = {
       upsert: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
-      bulkUpsert: jest.fn().mockResolvedValue(undefined),
+      bulkUpsert: jest.fn(),
     };
     searchClient = { search: jest.fn() };
     logError = jest.spyOn(Logger.prototype, 'error').mockImplementation();
@@ -202,7 +203,9 @@ describe('ProductsService', () => {
 
     it('rethrows unexpected database errors', async () => {
       db.create.mockRejectedValue(new Error('connection lost'));
-      await expect(service.create(createBody)).rejects.toThrow('connection lost');
+      await expect(service.create(createBody)).rejects.toThrow(
+        'connection lost',
+      );
     });
   });
 
@@ -263,7 +266,9 @@ describe('ProductsService', () => {
 
     it('maps an unknown id to NotFound and has no side effects', async () => {
       db.delete.mockRejectedValue(prismaError('P2025'));
-      await expect(service.remove(ID)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove(ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
       expect(indexer.remove).not.toHaveBeenCalled();
       expect(cache.incr).not.toHaveBeenCalled();
     });
@@ -277,7 +282,12 @@ describe('ProductsService', () => {
   });
 
   describe('search', () => {
-    const query: SearchQuery = { q: 'phone', sort: 'relevance', page: 1, size: 20 };
+    const query: SearchQuery = {
+      q: 'phone',
+      sort: 'relevance',
+      page: 1,
+      size: 20,
+    };
     const result: SearchResult = {
       hits: [toProductResponse(product)],
       total: 1,
@@ -332,12 +342,23 @@ describe('ProductsService', () => {
         sku: `SKU-${from + i}`,
       }));
 
+    beforeEach(() => {
+      // Like search-service: everything sent was indexed.
+      indexer.bulkUpsert.mockImplementation((batch) =>
+        Promise.resolve({ indexed: batch.length, skipped: 0, failed: [] }),
+      );
+    });
+
     it('sends Postgres to the indexer in batches of 500, then bumps the version once', async () => {
       db.findMany
         .mockResolvedValueOnce(rows(500, 0))
         .mockResolvedValueOnce(rows(500, 500))
         .mockResolvedValueOnce(rows(201, 1000));
-      await expect(service.reindex()).resolves.toEqual({ indexed: 1201 });
+      await expect(service.reindex()).resolves.toEqual({
+        indexed: 1201,
+        skipped: 0,
+        failed: [],
+      });
       expect(indexer.bulkUpsert).toHaveBeenCalledTimes(3);
       expect(indexer.bulkUpsert.mock.calls.map(([b]) => b.length)).toEqual([
         500, 500, 201,
@@ -354,16 +375,57 @@ describe('ProductsService', () => {
 
     it('handles an empty table', async () => {
       db.findMany.mockResolvedValueOnce([]);
-      await expect(service.reindex()).resolves.toEqual({ indexed: 0 });
+      await expect(service.reindex()).resolves.toEqual({
+        indexed: 0,
+        skipped: 0,
+        failed: [],
+      });
       expect(indexer.bulkUpsert).not.toHaveBeenCalled();
     });
 
-    it('fails with 503 when the indexer fails, instead of hiding it', async () => {
+    // Review Focus 3: partial failures are reported, not thrown or dropped.
+    it('sums search-service results across batches and returns every failure', async () => {
+      db.findMany
+        .mockResolvedValueOnce(rows(500, 0))
+        .mockResolvedValueOnce(rows(1, 500));
+      const failure = { id: 'x', status: 400, reason: 'r' };
+      indexer.bulkUpsert
+        .mockResolvedValueOnce({ indexed: 500, skipped: 0, failed: [] })
+        .mockResolvedValueOnce({ indexed: 0, skipped: 1, failed: [failure] });
+      await expect(service.reindex()).resolves.toEqual({
+        indexed: 500,
+        skipped: 1,
+        failed: [failure],
+      });
+    });
+
+    it('fails with 503 when search-service is unavailable, saying how far it got', async () => {
+      db.findMany
+        .mockResolvedValueOnce(rows(500, 0))
+        .mockResolvedValueOnce(rows(3, 500));
+      indexer.bulkUpsert
+        .mockResolvedValueOnce({ indexed: 500, skipped: 0, failed: [] })
+        .mockRejectedValueOnce(new SearchUnavailableError('down'));
+      const err = await service.reindex().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ServiceUnavailableException);
+      expect((err as Error).message).toContain('after 500 products');
+      expect(cache.incr).toHaveBeenCalledTimes(1);
+    });
+
+    // Review Focus 4: a database failure is not "search is unavailable".
+    it('rethrows a Postgres failure as is, still bumping the version', async () => {
+      const dbDown = new Error('db down');
+      db.findMany.mockRejectedValueOnce(dbDown);
+      await expect(service.reindex()).rejects.toBe(dbDown);
+      expect(cache.incr).toHaveBeenCalledWith(SEARCH_VERSION_KEY);
+      expect(logError).toHaveBeenCalled();
+    });
+
+    it('rethrows a search-service contract error instead of calling it unavailable', async () => {
       db.findMany.mockResolvedValueOnce(rows(3, 0));
-      indexer.bulkUpsert.mockRejectedValue(new Error('search-service down'));
-      await expect(service.reindex()).rejects.toBeInstanceOf(
-        ServiceUnavailableException,
-      );
+      const contract = new SearchServiceError(400, 'bad body');
+      indexer.bulkUpsert.mockRejectedValueOnce(contract);
+      await expect(service.reindex()).rejects.toBe(contract);
     });
   });
 });

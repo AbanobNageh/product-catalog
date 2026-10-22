@@ -15,6 +15,7 @@ import {
   SEARCH_CLIENT,
   SEARCH_INDEXER,
   SEARCH_VERSION_KEY,
+  type BulkIndexResult,
   type SearchClient,
   type SearchIndexer,
   type SearchQuery,
@@ -51,7 +52,9 @@ export class ProductsService {
     const product = toProductResponse(
       await this.prisma.product.create({ data: dto }).catch(mapPrismaError),
     );
-    await this.afterWrite('upsert', product.id, () => this.indexer.upsert(product));
+    await this.afterWrite('upsert', product.id, () =>
+      this.indexer.upsert(product),
+    );
     return product;
   }
 
@@ -108,7 +111,8 @@ export class ProductsService {
    */
   async search(query: SearchQuery): Promise<SearchResult> {
     const version = await this.cache.getCounter(SEARCH_VERSION_KEY);
-    const key = version === undefined ? undefined : searchCacheKey(query, version);
+    const key =
+      version === undefined ? undefined : searchCacheKey(query, version);
     if (key) {
       const cached = await this.cache.getJson<SearchResult>(key);
       if (cached) return cached;
@@ -120,7 +124,9 @@ export class ProductsService {
     } catch (err) {
       if (err instanceof SearchUnavailableError) {
         this.logger.warn('search unavailable', { err: err.message });
-        throw new ServiceUnavailableException('search is temporarily unavailable');
+        throw new ServiceUnavailableException(
+          'search is temporarily unavailable',
+        );
       }
       throw err;
     }
@@ -131,9 +137,12 @@ export class ProductsService {
   /**
    * Rebuilds the index from Postgres, the source of truth. Unlike per-write
    * indexing, a failure here is returned to the caller, who asked for it.
+   * Items search-service couldn't index are listed in `failed` (still a 200);
+   * only search-service being unavailable is a 503.
    */
-  async reindex(): Promise<{ indexed: number }> {
-    let indexed = 0;
+  async reindex(): Promise<BulkIndexResult> {
+    const result: BulkIndexResult = { indexed: 0, skipped: 0, failed: [] };
+    let sent = 0;
     let lastId: string | undefined;
     try {
       for (;;) {
@@ -143,22 +152,39 @@ export class ProductsService {
           take: REINDEX_BATCH_SIZE,
         });
         if (rows.length === 0) break;
-        await this.indexer.bulkUpsert(rows.map(toProductResponse));
-        indexed += rows.length;
+        const batch = await this.indexer.bulkUpsert(
+          rows.map(toProductResponse),
+        );
+        result.indexed += batch.indexed;
+        result.skipped += batch.skipped;
+        result.failed.push(...batch.failed);
+        sent += rows.length;
         lastId = rows[rows.length - 1].id;
         if (rows.length < REINDEX_BATCH_SIZE) break;
       }
     } catch (err) {
-      this.logger.error('reindex failed', { indexed, err: String(err) });
-      throw new ServiceUnavailableException(
-        `reindex failed after ${indexed} products: search is unavailable`,
-      );
+      this.logger.error('reindex failed', { sent, err: String(err) });
+      if (err instanceof SearchUnavailableError) {
+        throw new ServiceUnavailableException(
+          `reindex failed after ${sent} products: search is unavailable`,
+        );
+      }
+      throw err;
     } finally {
       // Even a partial reindex may have changed results, so drop cached searches.
       await this.cache.incr(SEARCH_VERSION_KEY);
     }
-    this.logger.log('reindex complete', { indexed });
-    return { indexed };
+    if (result.failed.length > 0) {
+      this.logger.warn('reindex finished with failed items', {
+        failed: result.failed.length,
+      });
+    }
+    this.logger.log('reindex complete', {
+      indexed: result.indexed,
+      skipped: result.skipped,
+      failed: result.failed.length,
+    });
+    return result;
   }
 
   /**

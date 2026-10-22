@@ -120,15 +120,18 @@ func (x *Indexer) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Bulk indexes many products without waiting for a refresh. Invalid products
-// and items OpenSearch rejects are reported in Failed; the rest are indexed.
+// Bulk indexes many products and, like Upsert, waits until they are
+// searchable (refresh=wait_for). catalog-api invalidates its search cache when
+// a reindex returns, so unrefreshed writes would let the next search cache
+// pre-reindex results (1.4 finding A). Invalid products and items OpenSearch
+// rejects are reported in Failed; the rest are indexed.
 func (x *Indexer) Bulk(ctx context.Context, ps []catalog.Product) (BulkResult, error) {
 	body, invalid := bulkLines(ps)
 	result := BulkResult{Failed: []Failure{}}
 	if len(body) > 0 {
 		ctx, cancel := context.WithTimeout(ctx, bulkTimeout)
 		defer cancel()
-		resp, err := x.bulk(ctx, body, "")
+		resp, err := x.bulk(ctx, body, "wait_for")
 		if err != nil {
 			return BulkResult{}, fmt.Errorf("bulk: %w", err)
 		}

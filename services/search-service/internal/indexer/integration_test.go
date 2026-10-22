@@ -91,6 +91,28 @@ func TestUpsertVersioningAndRefresh(t *testing.T) {
 	}
 }
 
+// 1.4 finding A: catalog-api bumps its search-cache version when reindex
+// returns. If the bulk writes weren't searchable yet, the next search cached
+// pre-reindex results under the new version for 60s.
+func TestBulkIsSearchableOnReturn(t *testing.T) {
+	c := ittest.Client(t)
+	n := ittest.Index(t, c)
+	x := indexer.New(c, n.Alias, quiet)
+
+	res, err := x.Bulk(context.Background(), []catalog.Product{
+		product("b1", "2026-10-21T10:00:00Z"),
+		product("b2", "2026-10-21T10:00:00Z"),
+	})
+	if err != nil || res.Indexed != 2 {
+		t.Fatalf("Bulk: %+v %v", res, err)
+	}
+	for _, id := range []string{"b1", "b2"} {
+		if !searchable(t, c, n.Alias, id) {
+			t.Fatalf("refresh=wait_for: %s should be searchable as soon as Bulk returns", id)
+		}
+	}
+}
+
 func TestDeleteIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	c := ittest.Client(t)
