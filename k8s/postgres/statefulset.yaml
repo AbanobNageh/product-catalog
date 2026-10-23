@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: catalog-api-postgres
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: catalog-api-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: product-catalog
+spec:
+  replicas: 1
+  serviceName: "catalog-api-postgres"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/instance: catalog-api-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: catalog-api-postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:18-alpine
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_PASSWORD
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: catalog-api-postgres-volume
+          mountPath: /var/lib/postgresql
+  volumeClaimTemplates:
+  - metadata:
+      name: catalog-api-postgres-volume
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: catalog-api-postgres
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 1Gi

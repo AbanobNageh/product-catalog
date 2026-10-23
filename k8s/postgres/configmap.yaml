@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-api-postgres
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: catalog-api-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: product-catalog
+data:
+  POSTGRES_DB: "catalog"
