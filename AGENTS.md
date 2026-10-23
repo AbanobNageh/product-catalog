@@ -65,6 +65,10 @@ Cluster (kind, repo root):
   5. Roll out: `kubectl apply -f k8s/catalog-api/deployment.yaml`, then `kubectl rollout status deploy/catalog-api -n catalog`.
   - Roll back with `kubectl rollout undo deploy/catalog-api -n catalog`, then set the file back to the running version.
   - `migrate deploy` refuses a non-empty database that has no `_prisma_migrations` table (P3005)
+- Search side: `kubectl apply -f k8s/opensearch/`, then `kubectl rollout status statefulset/search-service-opensearch -n catalog --timeout=10m`, then `kubectl apply -f k8s/search-service/`. `kind load` fails for the multi-platform OpenSearch image, so each node pulls it (1.2 GB, several minutes the first time); `kind load docker-image search-service:<v> --name catalog` works
+- Check OpenSearch: `kubectl exec -n catalog search-service-opensearch-0 -- curl -s "localhost:9200/_cat/indices/products*?v"`
+- Seed in the cluster (re-running is safe; a Job's template is immutable, so delete it first): `kubectl delete job catalog-api-seed -n catalog --ignore-not-found`, `kubectl apply -f k8s/catalog-api/seedjob.yaml`, `kubectl wait --for=condition=complete job/catalog-api-seed -n catalog --timeout=10m`, then `kubectl logs job/catalog-api-seed -n catalog`
+- Search end to end: `kubectl port-forward svc/catalog-api 3000:3000 -n catalog` (stop Compose's catalog-api first), then `curl.exe -s "localhost:3000/products/search?q=phone"`
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.

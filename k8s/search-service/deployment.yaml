@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: search-service
+    app.kubernetes.io/instance: search-service
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: product-catalog
+  annotations:
+    kubernetes.io/change-cause: "0.1.0: first in-cluster release"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: search-service
+      app.kubernetes.io/instance: search-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: search-service
+        app.kubernetes.io/instance: search-service
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      containers:
+      - name: search-service
+        image: search-service:0.1.0
+        env:
+        - name: OPENSEARCH_URL
+          value: "http://search-service-opensearch:9200"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 8080
+          name: http
+        # Stateless: memory request below the limit is fine here.
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: "1"
+            memory: 256Mi
+        # The server listens only once OpenSearch is reachable (it waits up to 30s, then exits).
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          failureThreshold: 20
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          timeoutSeconds: 2
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          timeoutSeconds: 3
+          periodSeconds: 5
+          failureThreshold: 2
+        lifecycle:
+          preStop:
+            sleep:
+              seconds: 5
