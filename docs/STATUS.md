@@ -3,16 +3,18 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** K1 Pods, Deployments, Services (not started). The cluster `kind-catalog` from K0 is still running; check it with `kubectl get nodes`.
-- **Last session:** 2026-10-23. Closed K0 Concepts and setup (e32c5ff, [note](milestones/2026-10-23-K0-concepts-and-setup.md)).
-- **Next step:** start K1 with the `teach-module` skill ([plan](plan/kubernetes.md)): Redis as a Deployment + Service in the `catalog` namespace. Define every new term on first use.
-  - From the [K0 note](milestones/2026-10-23-K0-concepts-and-setup.md#follow-ups):
-    - K1: the user decides how `catalog` is created (manifest or one-off). Demo live: kill a container vs delete a pod.
-    - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then.
-  - Carried into Part 2 from the [1.5 note](milestones/2026-10-22-1.5-polish.md#follow-ups):
-    - K4/K7: OpenSearch must run with `action.auto_create_index: "-products*,+*"`, or search-service won't start.
+- **Current:** K2 Config, Secrets, Postgres StatefulSet (not started). The cluster `kind-catalog` is still running with Redis (`catalog-api-redis`) in the `catalog` namespace; check it with `kubectl get nodes` and `kubectl get pods -n catalog`.
+- **Last session:** 2026-10-23. Closed K1 Pods, Deployments, Services (c91723f, [note](milestones/2026-10-23-K1-pods-deployments-services.md)). Accepted [ADR-0008](adr/0008-k8s-naming-and-labels.md) (names and labels).
+- **Next step:** start K2 with the `teach-module` skill ([plan](plan/kubernetes.md)). Define every new term on first use. Follow ADR-0008 for names and labels (Postgres: `component: database`).
+  - From the [K1 note](milestones/2026-10-23-K1-pods-deployments-services.md#follow-ups):
+    - K2: StatefulSet vs Deployment replacement (no overlap), PersistentVolumes (the lost `demo` key).
+    - K3: `REDIS_URL=redis://catalog-api-redis:6379/0`; a real image change and `rollout undo`; a readiness probe for Redis.
+    - K7: Helm's `instance` = release-name convention vs ADR-0008 (selectors are immutable).
+  - Still carried:
     - K2: the seed runs as a Job.
-    - K3: the migration image.
+    - K3: the migration image; `kind load docker-image`, never `:latest`.
+    - K4/K7: OpenSearch must run with `action.auto_create_index: "-products*,+*"`, or search-service won't start.
+    - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then.
 - **Open questions / blockers:** none.
 
 ## Checklist
@@ -25,7 +27,7 @@
 
 ### Part 2: Kubernetes ([plan](plan/kubernetes.md))
 - [x] K0 Concepts and setup · 2026-10-23 · e32c5ff · [note](milestones/2026-10-23-K0-concepts-and-setup.md)
-- [ ] K1 Pods, Deployments, Services
+- [x] K1 Pods, Deployments, Services · 2026-10-23 · c91723f · [note](milestones/2026-10-23-K1-pods-deployments-services.md)
 - [ ] K2 Config, Secrets, Postgres StatefulSet
 - [ ] K3 catalog-api: probes, migrations, rollouts
 - [ ] K4 OpenSearch + search-service
