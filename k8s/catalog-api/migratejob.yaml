@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-api-migrate
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: catalog-api
+    app.kubernetes.io/instance: catalog-api-migrate
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: product-catalog
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: catalog-api
+        app.kubernetes.io/instance: catalog-api-migrate
+        app.kubernetes.io/component: migration
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      containers:
+      - name: catalog-api-migrate
+        image: catalog-api-migrate:0.1.1
+        command: ["npx", "prisma",  "migrate", "deploy"]
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: catalog-api-postgres
+              key: POSTGRES_PASSWORD
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@catalog-api-postgres:5432/$(POSTGRES_DB)"
+      restartPolicy: Never
+  backoffLimit: 4

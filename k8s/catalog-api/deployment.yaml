@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: catalog-api
+    app.kubernetes.io/instance: catalog-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: product-catalog
+  annotations:
+    kubernetes.io/change-cause: "0.1.1: version in /healthz"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: catalog-api
+      app.kubernetes.io/instance: catalog-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: catalog-api
+        app.kubernetes.io/instance: catalog-api
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      containers:
+      - name: catalog-api
+        image: catalog-api:0.1.1
+        envFrom:
+        - configMapRef:
+            name: catalog-api-postgres
+        - secretRef:
+            name: catalog-api-postgres
+        - configMapRef:
+            name: catalog-api
+        env:
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@catalog-api-postgres:5432/$(POSTGRES_DB)"
+        ports:
+        - containerPort: 3000
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          timeoutSeconds: 2
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
+          timeoutSeconds: 3
+          periodSeconds: 5
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          failureThreshold: 30
+          periodSeconds: 10
+        lifecycle:
+          preStop:
+            sleep:
+              seconds: 15

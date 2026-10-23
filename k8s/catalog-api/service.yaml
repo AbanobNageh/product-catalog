@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: catalog-api
+    app.kubernetes.io/instance: catalog-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: product-catalog
+spec:
+  selector:
+    app.kubernetes.io/name: catalog-api
+    app.kubernetes.io/instance: catalog-api
+  ports:
+  - protocol: TCP
+    name: api
+    port: 3000
+    targetPort: 3000

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-api
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: catalog-api
+    app.kubernetes.io/instance: catalog-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: product-catalog
+data:
+  REDIS_URL: "redis://catalog-api-redis:6379/0"
+  SEARCH_SERVICE_URL: "http://search-service:8080"
