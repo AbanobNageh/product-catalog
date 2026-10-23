@@ -3,18 +3,15 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** K3 catalog-api: probes, migrations, rollouts (not started). The cluster `kind-catalog` is running Redis (`catalog-api-redis`) and Postgres (`catalog-api-postgres-0`, PVC Bound) in the `catalog` namespace; check it with `kubectl get pods,pvc -n catalog`.
-- **Last session:** 2026-10-23. Closed K2 Config, Secrets, Postgres StatefulSet (3ea04da, [note](milestones/2026-10-23-K2-config-secrets-postgres-statefulset.md)). Learning progress (quizzes, weak spots) now lives in the git-ignored `docs/learning/progress.md`; the K0/K1 history was rewritten to remove it.
-- **Next step:** start K3 with the `teach-module` skill ([plan](plan/kubernetes.md)), after reading `docs/learning/progress.md`. Define every new term on first use. Follow ADR-0008 for names and labels.
-  - From the [K2 note](milestones/2026-10-23-K2-config-secrets-postgres-statefulset.md#follow-ups):
-    - K3: catalog-api's `DATABASE_URL` points at `catalog-api-postgres:5432/catalog` (decide: build it from the existing Secret's keys or add a catalog-api Secret); the migration Job uses the same database; a `pg_isready` readiness probe for Postgres; name the container port `postgres`.
-    - K4: the seed runs as a Job (it needs catalog-api and search-service).
-    - K6: Postgres requests and limits; drills for delete/re-apply of the StatefulSet and a node failure with a node-pinned local PV.
+- **Current:** K4 OpenSearch + search-service (not started). The cluster `kind-catalog` runs Redis, Postgres (`catalog-api-postgres-0`) and catalog-api 0.1.1 (2 replicas, revision 4) in `catalog`; check it with `kubectl get pods,pvc -n catalog`.
+- **Last session:** 2026-10-23. Closed K3 catalog-api: probes, migrations, rollouts (9c15d79, [note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md)). Accepted [ADR-0009](adr/0009-slim-migrate-image.md) (slim migrate image). The catalog-api release procedure is in `AGENTS.md` (Cluster).
+- **Next step:** start K4 with the `teach-module` skill ([plan](plan/kubernetes.md)), after reading `docs/learning/progress.md`. Define every new term on first use. Follow ADR-0008 for names and labels.
+  - From the [K3 note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md#follow-ups):
+    - K4: search-service must be the `search-service` Service on 8080 (catalog-api's ConfigMap points there); the seed runs as a Job (ADR-0006: catalog-api runtime image, `node dist/seed/main.js`); OpenSearch needs `action.auto_create_index: "-products*,+*"` (ADR-0007), or search-service won't start.
+    - K6: requests and limits everywhere; a Redis-outage drill (both catalog-api pods fail readiness together); readiness probes for Redis and Postgres; the StatefulSet delete/re-apply and node-failure drills.
+    - K7: Helm hooks for the migration Job; template the Secret; Helm's `instance` = release-name convention vs ADR-0008.
   - Still carried:
-    - K3: `REDIS_URL=redis://catalog-api-redis:6379/0`; a real image change and `rollout undo`; a readiness probe for Redis; the migration image; `kind load docker-image`, never `:latest`.
-    - K4/K7: OpenSearch must run with `action.auto_create_index: "-products*,+*"`, or search-service won't start.
     - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then.
-    - K7: Helm's `instance` = release-name convention vs ADR-0008 (selectors are immutable); template the Secret instead of committing values.
 - **Open questions / blockers:** the branch `backup/before-quiz-removal` (old K0/K1 history) can be deleted once the user confirms.
 
 ## Checklist
@@ -29,7 +26,7 @@
 - [x] K0 Concepts and setup · 2026-10-23 · e32c5ff · [note](milestones/2026-10-23-K0-concepts-and-setup.md)
 - [x] K1 Pods, Deployments, Services · 2026-10-23 · c91723f · [note](milestones/2026-10-23-K1-pods-deployments-services.md)
 - [x] K2 Config, Secrets, Postgres StatefulSet · 2026-10-23 · 3ea04da · [note](milestones/2026-10-23-K2-config-secrets-postgres-statefulset.md)
-- [ ] K3 catalog-api: probes, migrations, rollouts
+- [x] K3 catalog-api: probes, migrations, rollouts · 2026-10-23 · 9c15d79 · [note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md)
 - [ ] K4 OpenSearch + search-service
 - [ ] K5 Ingress, then Gateway API
 - [ ] K6 Resources, scaling, failure drills

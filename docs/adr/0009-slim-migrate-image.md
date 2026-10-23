@@ -1,6 +1,6 @@
 # 0009. A slim `migrate` image for database migrations
 
-- **Status:** Proposed (chosen by the user at the K3 start)
+- **Status:** Accepted (chosen at the K3 start, approved at the K3 close)
 - **Date:** 2026-10-23
 
 ## Context

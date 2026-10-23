@@ -56,6 +56,15 @@ Cluster (kind, repo root):
 - Create: `kind create cluster --config k8s/kind-config.yaml`. This creates cluster `catalog` (context `kind-catalog`) with 1 control-plane and 2 workers
 - Delete: `kind delete cluster --name catalog`. First check `kubectl config current-context` says `kind-catalog`
 - Port mappings (`127.0.0.1:80/443` → `catalog-worker`, labelled `catalog/role=gateway-node`) can only change by deleting and recreating the cluster
+- Preview an apply: `kubectl diff -f <file>`. In PowerShell it needs a `diff` program on the PATH first: `$env:Path += ";C:\Program Files\Git\usr\bin"`
+- Release catalog-api `<v>`:
+  1. Build both images from the same commit (see catalog-api above).
+  2. Load them: `kind load docker-image catalog-api:<v> catalog-api-migrate:<v> --name catalog`
+  3. Set `<v>` in `k8s/catalog-api/migratejob.yaml` and `deployment.yaml`.
+  4. Migrate first. A Job's template is immutable, so delete it and re-apply it: `kubectl delete job catalog-api-migrate -n catalog`, `kubectl apply -f k8s/catalog-api/migratejob.yaml`, then `kubectl wait --for=condition=complete job/catalog-api-migrate -n catalog --timeout=120s`.
+  5. Roll out: `kubectl apply -f k8s/catalog-api/deployment.yaml`, then `kubectl rollout status deploy/catalog-api -n catalog`.
+  - Roll back with `kubectl rollout undo deploy/catalog-api -n catalog`, then set the file back to the running version.
+  - `migrate deploy` refuses a non-empty database that has no `_prisma_migrations` table (P3005)
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.
