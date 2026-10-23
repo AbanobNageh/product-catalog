@@ -21,9 +21,28 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --omit=optional --ignore-scripts
 
-# 3. Runtime: compiled app + production node_modules, as the non-root node user.
-#    Migrations are not run from this image (separate command; K3 decides the
-#    migration image, see ADR-0003).
+# 3. Migrations (ADR-0009): only the Prisma CLI, the schema and the migrations,
+#    for Compose's migrate service and the K3 migration Job. Build it with
+#    --target migrate. package.json is cut down to the prisma dependency, so the
+#    CLI version still comes from package.json and npm install takes every
+#    other version from the lockfile. Install scripts run: @prisma/engines
+#    downloads the schema engine (approved in allowScripts).
+FROM node:24-alpine AS migrate
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN PRISMA_VERSION=$(npm pkg get devDependencies.prisma | tr -d '"') \
+ && npm pkg delete dependencies devDependencies scripts \
+ && npm pkg set "dependencies.prisma=$PRISMA_VERSION" \
+ && npm install --no-audit --no-fund \
+ && npm cache clean --force
+COPY prisma.config.ts ./
+COPY prisma ./prisma
+USER node
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+# 4. Runtime: compiled app + production node_modules, as the non-root node user.
+#    Migrations never run from this image (see the migrate stage). This stage
+#    must stay last: it's what a build without --target produces.
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app

@@ -1,6 +1,6 @@
 {
   "name": "catalog-api",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Product catalogue API: CRUD on Postgres, Redis cache, search via search-service",
   "private": true,
   "license": "UNLICENSED",

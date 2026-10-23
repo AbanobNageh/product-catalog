@@ -17,8 +17,11 @@ describe('HealthController', () => {
     );
   });
 
-  it('healthz reports ok without checking dependencies', () => {
-    expect(controller.healthz()).toEqual({ status: 'ok' });
+  it('healthz reports ok and the package.json version without checking dependencies', () => {
+    expect(controller.healthz()).toEqual({
+      status: 'ok',
+      version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+    });
     expect(queryRaw).not.toHaveBeenCalled();
     expect(ping).not.toHaveBeenCalled();
   });

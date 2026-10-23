@@ -63,13 +63,13 @@ services:
       start_period: 60s
 
   # One-shot, like K3's migration Job: applies committed migrations, then exits.
-  # Built from the Dockerfile's `build` stage because the runtime image has no
-  # Prisma CLI (ADR-0003). Migrations never run at app startup.
+  # The same slim `migrate` image the Job uses (ADR-0009); its default command
+  # is `prisma migrate deploy`. Migrations never run at app startup.
   migrate:
     build:
       context: services/catalog-api
-      target: build
-    command: ["npx", "prisma", "migrate", "deploy"]
+      target: migrate
+    image: catalog-api-migrate:0.1.0
     environment:
       DATABASE_URL: postgresql://catalog:catalog@postgres:5432/catalog
     depends_on:

@@ -1,5 +1,6 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
+import { APP_VERSION } from '../common/app-version';
 import { withTimeout } from '../common/with-timeout';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisCache } from '../redis/redis-cache';
@@ -28,9 +29,9 @@ export class HealthController {
 
   /** Liveness: the process is up. Deliberately checks no dependencies. */
   @Get('healthz')
-  @ApiOkResponse({ description: 'The process is up' })
+  @ApiOkResponse({ description: 'The process is up, and its version' })
   healthz() {
-    return { status: 'ok' };
+    return { status: 'ok', version: APP_VERSION };
   }
 
   /** Readiness: Postgres and Redis are reachable. */
