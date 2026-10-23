@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api-redis
+  namespace: catalog
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: catalog-api-redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: product-catalog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: catalog-api-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/instance: catalog-api-redis
+        app.kubernetes.io/component: cache
+        app.kubernetes.io/part-of: product-catalog
+    spec:
+      containers:
+      - name: redis
+        image: redis:8-alpine
+        ports:
+        - containerPort: 6379
