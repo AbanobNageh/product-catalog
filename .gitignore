@@ -32,6 +32,10 @@ kubeconfig*
 .claude/settings.local.json
 CLAUDE.local.md
 
+# Learning progress: personal, kept out of the public repo
+LEARNING-NOTES.md
+docs/learning/
+
 # OS / editors
 .DS_Store
 Thumbs.db

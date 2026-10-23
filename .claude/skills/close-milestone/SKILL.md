@@ -14,11 +14,10 @@ Do the steps in order. Stop at any failed check.
    - Date: YYYY-MM-DD · Commits: <short hashes>
    ## What was built
    ## Decisions (link ADRs)
-   ## Review findings and corrections   <!-- what the user caught, and what changed as a result -->
-   ## Parts 2–3 only: what was hard, quiz questions and how they went
+   ## Review findings and corrections   <!-- Part 1 only: what the user caught, and what changed as a result -->
    ## Follow-ups
    ```
-   Be honest in "Review findings". This section is the portfolio evidence that the user reviewed the AI's work.
+   Be honest in "Review findings". This section is the portfolio evidence that the user reviewed the AI's work. Parts 2–3 notes have no "Review findings": they record what was built (with how it was verified), the decisions and the follow-ups. Quiz results, what was hard and the review rounds on the user's own files go in the git-ignored `docs/learning/progress.md`, never in a committed file.
 4. **Commit.** Propose the commit message (Conventional Commits style, with the co-author trailer) and commit only after the user says yes. Then commit the note and the STATUS update separately as `docs: close <id>`.
 5. **Update `docs/STATUS.md`.** Tick the item: `[x] <id> <title> · YYYY-MM-DD · <short hash of the work commit> · [note](milestones/<file>.md)`. Rewrite "Now" to point at the next milestone. Don't touch other checklist items.
 6. **Experiment log:** add one line to the log in `docs/ai-workflow.md` saying what the context system helped with or got wrong during this milestone.

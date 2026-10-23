@@ -13,6 +13,6 @@ The user writes all manifests, charts and HCL. You teach. Module definitions: `d
 5. **Run the "Done when" checks** with them. They run the commands; you help read the output.
 6. **Quiz** them with 3 short questions on the module, the kind an interviewer might ask. Tell them which answers were weak and why.
 7. **Remind** them to add notes to `LEARNING-NOTES.md` in their own words. Never write that file.
-8. **Close the module** with the `close-milestone` skill. Record what they found hard and how they did on the quiz.
+8. **Close the module** with the `close-milestone` skill. Record what they found hard, the review rounds on their files and how they did on the quiz in `docs/learning/progress.md` (git-ignored), never in a committed file. Read it at the start of each module to revisit weak spots.
 
-Keep the "Now" block of `docs/STATUS.md` current as you move through the steps (for example "K2: reviewing the StatefulSet, step 4").
+Keep the "Now" block of `docs/STATUS.md` current as you move through the steps (for example "K2: reviewing the StatefulSet, step 4"), without quiz results.
