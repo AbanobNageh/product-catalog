@@ -3,15 +3,13 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** K4 OpenSearch + search-service (not started). The cluster `kind-catalog` runs Redis, Postgres (`catalog-api-postgres-0`) and catalog-api 0.1.1 (2 replicas, revision 4) in `catalog`; check it with `kubectl get pods,pvc -n catalog`.
-- **Last session:** 2026-10-23. Closed K3 catalog-api: probes, migrations, rollouts (9c15d79, [note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md)). Accepted [ADR-0009](adr/0009-slim-migrate-image.md) (slim migrate image). The catalog-api release procedure is in `AGENTS.md` (Cluster).
-- **Next step:** start K4 with the `teach-module` skill ([plan](plan/kubernetes.md)), after reading `docs/learning/progress.md`. Define every new term on first use. Follow ADR-0008 for names and labels.
-  - From the [K3 note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md#follow-ups):
-    - K4: search-service must be the `search-service` Service on 8080 (catalog-api's ConfigMap points there); the seed runs as a Job (ADR-0006: catalog-api runtime image, `node dist/seed/main.js`); OpenSearch needs `action.auto_create_index: "-products*,+*"` (ADR-0007), or search-service won't start.
-    - K6: requests and limits everywhere; a Redis-outage drill (both catalog-api pods fail readiness together); readiness probes for Redis and Postgres; the StatefulSet delete/re-apply and node-failure drills.
-    - K7: Helm hooks for the migration Job; template the Secret; Helm's `instance` = release-name convention vs ADR-0008.
-  - Still carried:
-    - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then.
+- **Current:** K5 Ingress, then Gateway API (not started). The cluster `kind-catalog` runs the full app in `catalog`: Redis, Postgres, catalog-api 0.1.1 (2 replicas), OpenSearch (`search-service-opensearch-0`, 10,000 products seeded) and search-service 0.1.0 (2 replicas); check it with `kubectl get pods,pvc -n catalog`.
+- **Last session:** 2026-10-23. Closed K4 OpenSearch + search-service (095a0c4, [note](milestones/2026-10-23-K4-opensearch-search-service.md)). The user asked the AI to write K4's manifests and skipped the quiz; the search-side commands are in `AGENTS.md` (Cluster).
+- **Next step:** start K5 with the `teach-module` skill ([plan](plan/kubernetes.md)), after reading `docs/learning/progress.md`. Define every new term on first use. Follow ADR-0008 for names and labels.
+  - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then. Only catalog-api is exposed; search-service and OpenSearch stay internal.
+  - From the [K4 note](milestones/2026-10-23-K4-opensearch-search-service.md#follow-ups):
+    - K6: requests and limits on catalog-api, Postgres, Redis and both Jobs; OpenSearch QoS; the OpenSearch PVC-delete drill; a Redis-outage drill; readiness probes for Redis and Postgres; the StatefulSet delete/re-apply and node-failure drills.
+    - K7: the official OpenSearch chart vs the hand-written StatefulSet; Helm hooks for the migration and seed Jobs; template the Secret; Helm's `instance` = release-name convention vs ADR-0008.
 - **Open questions / blockers:** the branch `backup/before-quiz-removal` (old K0/K1 history) can be deleted once the user confirms.
 
 ## Checklist
@@ -27,7 +25,7 @@
 - [x] K1 Pods, Deployments, Services · 2026-10-23 · c91723f · [note](milestones/2026-10-23-K1-pods-deployments-services.md)
 - [x] K2 Config, Secrets, Postgres StatefulSet · 2026-10-23 · 3ea04da · [note](milestones/2026-10-23-K2-config-secrets-postgres-statefulset.md)
 - [x] K3 catalog-api: probes, migrations, rollouts · 2026-10-23 · 9c15d79 · [note](milestones/2026-10-23-K3-catalog-api-probes-migrations-rollouts.md)
-- [ ] K4 OpenSearch + search-service
+- [x] K4 OpenSearch + search-service · 2026-10-23 · 095a0c4 · [note](milestones/2026-10-23-K4-opensearch-search-service.md)
 - [ ] K5 Ingress, then Gateway API
 - [ ] K6 Resources, scaling, failure drills
 - [ ] K7 Helm
