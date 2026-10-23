@@ -7,7 +7,7 @@ A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, wit
 
 ## The learner
 - Backend engineer, about 5.5 years. Strong in NestJS/TypeScript, Go, PostgreSQL, Redis and OpenSearch, so skip the basics there.
-- **New to Kubernetes and Terraform.** A little AWS (ECS services, IAM task roles through Terraform someone else wrote, S3). Pitch explanations at this level.
+- **New to Kubernetes and Terraform.** Assume no K8s/Terraform vocabulary: define every term on first use. A little AWS (ECS services, IAM task roles through Terraform someone else wrote, S3). Pitch explanations at this level.
 
 ## Setup
 - Host: Windows 11, Docker Desktop (WSL2). Give **PowerShell** commands.
@@ -50,6 +50,11 @@ search-service (`services/search-service`):
 - Load the sample data (30 products). The `@` path is relative, so change directory first: `Set-Location D:\Projects\product-catalog\services\search-service; curl.exe -s -X POST localhost:8080/products/_bulk -H "Content-Type: application/json" --data-binary "@testdata/sample-products.json"`
 - Try a search: `curl.exe -s "localhost:8080/search?q=phone&category=electronics&minPrice=10000&inStock=true&sort=price_asc"`
 - Image (from the repo root): `docker build -t search-service:0.1.0 services/search-service`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 8080:8080 -e OPENSEARCH_URL=http://opensearch:9200 search-service:0.1.0`
+
+Cluster (kind, repo root):
+- Create: `kind create cluster --config k8s/kind-config.yaml`. This creates cluster `catalog` (context `kind-catalog`) with 1 control-plane and 2 workers
+- Delete: `kind delete cluster --name catalog`. First check `kubectl config current-context` says `kind-catalog`
+- Port mappings (`127.0.0.1:80/443` → `catalog-worker`, labelled `catalog/role=gateway-node`) can only change by deleting and recreating the cluster
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.

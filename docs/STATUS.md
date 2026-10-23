@@ -3,9 +3,12 @@
 > Edit rules: the AI rewrites **Now** whenever the next step changes. The **Checklist** is tick-only: change `[ ]` to `[x]` and append `· date · commit · note link`. Never reword, reorder or delete items without asking.
 
 ## Now
-- **Current:** K0 Concepts and setup (not started). Part 1 is complete.
-- **Last session:** 2026-10-22. Closed 1.5 Polish (bdae727, [note](milestones/2026-10-22-1.5-polish.md)). ADR-0007 accepted. Part 1 is done.
-- **Next step:** start K0 with the `teach-module` skill ([plan](plan/kubernetes.md)). First install kind (`winget install Kubernetes.kind`).
+- **Current:** K1 Pods, Deployments, Services (not started). The cluster `kind-catalog` from K0 is still running; check it with `kubectl get nodes`.
+- **Last session:** 2026-10-23. Closed K0 Concepts and setup (e32c5ff, [note](milestones/2026-10-23-K0-concepts-and-setup.md)).
+- **Next step:** start K1 with the `teach-module` skill ([plan](plan/kubernetes.md)): Redis as a Deployment + Service in the `catalog` namespace. Define every new term on first use.
+  - From the [K0 note](milestones/2026-10-23-K0-concepts-and-setup.md#follow-ups):
+    - K1: the user decides how `catalog` is created (manifest or one-off). Demo live: kill a container vs delete a pod.
+    - K5: Traefik needs hostPort 80/443 plus a nodeSelector `catalog/role=gateway-node`. Confirm Option A vs B and write the ADR then.
   - Carried into Part 2 from the [1.5 note](milestones/2026-10-22-1.5-polish.md#follow-ups):
     - K4/K7: OpenSearch must run with `action.auto_create_index: "-products*,+*"`, or search-service won't start.
     - K2: the seed runs as a Job.
@@ -21,7 +24,7 @@
 - [x] 1.5 Polish · 2026-10-22 · bdae727 · [note](milestones/2026-10-22-1.5-polish.md)
 
 ### Part 2: Kubernetes ([plan](plan/kubernetes.md))
-- [ ] K0 Concepts and setup
+- [x] K0 Concepts and setup · 2026-10-23 · e32c5ff · [note](milestones/2026-10-23-K0-concepts-and-setup.md)
 - [ ] K1 Pods, Deployments, Services
 - [ ] K2 Config, Secrets, Postgres StatefulSet
 - [ ] K3 catalog-api: probes, migrations, rollouts
