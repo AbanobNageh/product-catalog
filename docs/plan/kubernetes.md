@@ -1,4 +1,4 @@
-# Part 2: Kubernetes (I write it, the AI teaches)
+# Part 2: Kubernetes (the AI writes and explains, I do the rest)
 
 Runs on a local **kind** cluster in its own namespace, `catalog`. Plain YAML until module K7, then Helm. Estimated time: 1–2 weeks.
 
@@ -92,10 +92,4 @@ How each module runs: `.claude/skills/teach-module/SKILL.md`. Known pitfalls (in
   - Keep Postgres and Redis as my own manifests, or template them too.
 - **Done when:** `helm install` on a fresh cluster brings up the whole app, and `helm upgrade --set image.tag=...` rolls out a new version.
 
-**K8 (optional). Security basics**
-- **Learn:** ServiceAccounts, RBAC (Role, RoleBinding), NetworkPolicy, Pod security context.
-- **Do:**
-  - Add a NetworkPolicy so only catalog-api can reach search-service and the databases.
-  - Run the containers non-root with read-only root filesystems.
-- **Caveat:** kind's default network plugin doesn't enforce NetworkPolicy. Recreate the cluster with Calico or Cilium.
-- **Done when:** a test pod can't reach search-service, but catalog-api can.
+Part 2 ends at K7. Security basics (formerly the optional K8) is now a possible future module in [Part 4: Optional extras](extras.md).

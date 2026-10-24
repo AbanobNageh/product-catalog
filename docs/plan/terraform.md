@@ -1,4 +1,4 @@
-# Part 3: Terraform (I write it, the AI teaches)
+# Part 3: Terraform (the AI writes and explains, I do the rest)
 
 Estimated time: about 1 week.
 

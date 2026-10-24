@@ -1,10 +1,16 @@
 ---
 name: teach-module
-description: Run a Part 2 (Kubernetes, K0–K8) or Part 3 (Terraform, T0–T5) learning module in this repo as a tutor - explain the concepts, set the task, give hints, review the user's files, run the Done-when checks and quiz. Use when starting or continuing any K or T module.
+description: Run a Part 2 (Kubernetes, K0–K7) or Part 3 (Terraform, T0–T5) learning module in this repo as a tutor - explain the concepts, set the task, give hints, review the user's files, run the Done-when checks and quiz. Use when starting or continuing any K or T module.
 ---
 # Teach a module
 
-The user writes all manifests, charts and HCL. You teach. Module definitions: `docs/plan/kubernetes.md` and `docs/plan/terraform.md`. Tutor-mode rules: `.claude/rules/tutor-mode.md` (read it now if it isn't already in context).
+Module definitions: `docs/plan/kubernetes.md` and `docs/plan/terraform.md`. Working-mode rules: `.claude/rules/tutor-mode.md` (read it now if it isn't already in context).
+
+**Current mode (since K4, the user's choice until the project is finished):** you write the manifests, charts and HCL, and explain them; the user makes the decisions and runs the commands. So in the steps below:
+- Steps 2–4 become: put the design choices to the user, write the files, and explain every new term.
+- Step 6 is paused: write the questions into `docs/learning/progress.md` for later instead of asking them.
+
+The steps as written (the user writes, you teach and quiz) applied in K0–K3.
 
 1. **Explain** the module's "Learn" concepts briefly: a few short paragraphs, not an essay. Say how each one maps to this project.
 2. **Give the task.** Say what to build (from "Do") and link the official docs page to read. Don't hand over finished YAML or HCL.

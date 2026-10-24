@@ -11,10 +11,9 @@ A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, wit
 
 ## Setup
 - Host: Windows 11, Docker Desktop (WSL2). Give **PowerShell** commands.
-- Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), Go 1.26, Node 24, minikube 1.39 (unused; this project uses kind).
-- Install when the module starts: kind (`winget install Kubernetes.kind`), Helm (`winget install Helm.Helm`), Terraform (`winget install Hashicorp.Terraform`). Optional: k9s (`winget install Derailed.k9s`), `hey` or k6.
+- Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), kind 0.33, Helm 4.3.1, k6, Go 1.26, Node 24.
+- Install when the module starts: Terraform (`winget install Hashicorp.Terraform`, then a new terminal). Optional: k9s (`winget install Derailed.k9s`).
 - **Docker Desktop memory:** WSL2 needs at least 8 GB (in `.wslconfig`).
-- **OpenSearch** 2.12+ needs `OPENSEARCH_INITIAL_ADMIN_PASSWORD`, or `DISABLE_SECURITY_PLUGIN=true` (fine locally). Use `discovery.type=single-node` and a 512 MB JVM heap. If it complains about `vm.max_map_count`: `wsl -d docker-desktop sysctl -w vm.max_map_count=262144`.
 
 ## Commands
 
@@ -86,7 +85,7 @@ App: the Helm chart `charts/product-catalog` (release `product-catalog` in names
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.
-- **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** I write every manifest, chart and HCL file. The AI teaches, hints, reviews and quizzes, following `.claude/skills/teach-module/SKILL.md`. It never writes the solution unless I ask for it.
+- **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** since K4, the AI writes every manifest, chart and HCL file and explains every new term in it, following `.claude/skills/teach-module/SKILL.md` and `.claude/rules/tutor-mode.md`. I make the design decisions and run every apply, install and upgrade. Quizzes and explain-backs are paused until the project is finished.
 
 ## Rules
 - One milestone or module at a time. No scope beyond the plan without asking.
