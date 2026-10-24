@@ -1,0 +1,45 @@
+# Values for the official Traefik chart (traefik/traefik 42.1.3, Traefik v3.7).
+# Only the settings that differ from the chart's defaults (`helm show values traefik/traefik`).
+# Option A (ADR-0010): one Traefik pod on the labelled worker, holding hostPort 80.
+
+# kind's extraPortMappings send 127.0.0.1:80 only to this node (k8s/kind-config.yaml).
+nodeSelector:
+  catalog/role: gateway-node
+
+ports:
+  web:
+    # Traefik listens on 8000 inside the pod; the node's port 80 forwards to it.
+    hostPort: 80
+
+# Only one pod per node can hold a hostPort, and only one node qualifies, so the
+# new pod can't start beside the old one: stop the old pod first (a few seconds of downtime).
+updateStrategy:
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+
+# The default is LoadBalancer, which stays <pending> on kind (no cloud controller).
+# Traffic arrives through the hostPort, so an internal ClusterIP is enough.
+service:
+  spec:
+    type: ClusterIP
+
+providers:
+  # Ingress first, then Gateway API. Both stay on, so the switch needs no reinstall.
+  kubernetesIngress:
+    enabled: true
+  # Needs the Gateway API CRDs (v1.6.3, standard channel) installed before the chart.
+  kubernetesGateway:
+    enabled: true
+
+# The chart's GatewayClass `traefik` is kept; its default Gateway isn't, because
+# k8s/traefik/gateway.yaml defines our own.
+gateway:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

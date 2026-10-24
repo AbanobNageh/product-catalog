@@ -69,6 +69,13 @@ Cluster (kind, repo root):
 - Check OpenSearch: `kubectl exec -n catalog search-service-opensearch-0 -- curl -s "localhost:9200/_cat/indices/products*?v"`
 - Seed in the cluster (re-running is safe; a Job's template is immutable, so delete it first): `kubectl delete job catalog-api-seed -n catalog --ignore-not-found`, `kubectl apply -f k8s/catalog-api/seedjob.yaml`, `kubectl wait --for=condition=complete job/catalog-api-seed -n catalog --timeout=10m`, then `kubectl logs job/catalog-api-seed -n catalog`
 - Search end to end: `kubectl port-forward svc/catalog-api 3000:3000 -n catalog` (stop Compose's catalog-api first), then `curl.exe -s "localhost:3000/products/search?q=phone"`
+- After a reboot: start Docker Desktop first. The kind nodes restart with it, and the pods come back within a minute or two (search-service restarts a couple of times while OpenSearch boots)
+- Traefik (ADR-0010), in this order. After `winget install Helm.Helm`, open a new terminal so `helm` is on the PATH:
+  1. Chart repo: `helm repo add traefik https://traefik.github.io/charts`, then `helm repo update`.
+  2. Gateway API CRDs (the chart doesn't ship them): `kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml`
+  3. Install: `helm install traefik traefik/traefik --version 42.1.3 -n traefik --create-namespace -f k8s/traefik/values.yaml`. After a values change, run the same command with `helm upgrade` instead of `helm install`. Check it with `helm list -n traefik`.
+  4. Routes: `kubectl apply -f k8s/traefik/gateway.yaml -f k8s/catalog-api/httproute.yaml`. Check: `kubectl get gateway -n traefik` (`PROGRAMMED True`) and `kubectl describe httproute catalog-api -n catalog` (`Accepted` and `ResolvedRefs` True).
+  - Test: `curl.exe -s http://catalog.localhost/healthz`. No `port-forward` is needed. Plain `localhost` returns 404 (no route for that Host)
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.

@@ -1,0 +1,26 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: product-catalog
+  # The operator's side: the Gateway lives with Traefik, not with the app.
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: product-catalog
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: product-catalog
+spec:
+  # The GatewayClass the Traefik chart creates (controller traefik.io/gateway-controller).
+  gatewayClassName: traefik
+  listeners:
+  - name: web
+    protocol: HTTP
+    # Traefik's `web` entrypoint port inside the pod, not the node's port 80.
+    port: 8000
+    allowedRoutes:
+      namespaces:
+        # Only routes from the catalog namespace may attach.
+        from: Selector
+        selector:
+          matchLabels:
+            kubernetes.io/metadata.name: catalog
