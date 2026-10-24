@@ -1,0 +1,16 @@
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "api" "version" .Values.catalogApi.image.tag }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "product-catalog.selectorLabels" $labels | nindent 4 }}
+  ports:
+  - protocol: TCP
+    name: http
+    port: 3000
+    targetPort: http

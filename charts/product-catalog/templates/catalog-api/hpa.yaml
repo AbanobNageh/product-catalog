@@ -1,0 +1,28 @@
+{{- if .Values.catalogApi.autoscaling.enabled }}
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "api" "version" .Values.catalogApi.image.tag }}
+{{- with .Values.catalogApi.autoscaling }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-api
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-api
+  # 2 keeps one pod serving while the other restarts or rolls out (see pdb.yaml).
+  minReplicas: {{ .minReplicas }}
+  maxReplicas: {{ .maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .targetCPUUtilizationPercentage }}
+  # Defaults kept: scale up at once, scale down after 5 minutes of lower load.
+{{- end }}
+{{- end }}

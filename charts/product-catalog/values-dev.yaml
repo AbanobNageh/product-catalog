@@ -1,0 +1,14 @@
+# Local kind cluster. Layered on top of values.yaml:
+#   helm install product-catalog charts/product-catalog -n catalog --create-namespace -f charts/product-catalog/values-dev.yaml --wait --timeout 15m
+# Only what differs from values.yaml goes here.
+
+catalogApi:
+  seed:
+    enabled: true
+  route:
+    hostname: catalog.localhost
+
+postgres:
+  auth:
+    # Local only, the same as Compose.
+    password: catalog

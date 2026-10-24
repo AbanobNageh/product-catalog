@@ -1,0 +1,177 @@
+# Default values for the product-catalog chart. Every key here can be overridden with
+# -f <file> (for example values-dev.yaml) or --set key=value; later sources win.
+# Environment-specific values (password, hostname, seeding) have no usable default here,
+# so an install without an environment file fails early instead of half-working.
+# Requests and limits follow ADR-0011: memory request = limit, CPU request only.
+
+catalogApi:
+  image:
+    repository: catalog-api
+    # Load it into kind first (`kind load docker-image`). Never `latest` (k8s-pitfalls).
+    tag: "0.1.1"
+    pullPolicy: IfNotPresent
+  # The migration image is built from the same commit as the app, with the same tag (ADR-0009),
+  # so it reuses `image.tag`.
+  migrateImage:
+    repository: catalog-api-migrate
+  # Used only when autoscaling is off; otherwise the HPA owns the replica count.
+  replicas: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    # Each pod holds up to 10 Postgres connections; Postgres allows 100 (K6 note).
+    maxReplicas: 5
+    # Percent of the CPU request (200m), averaged over the pods.
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+  migrate:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 256Mi
+  # Seeds 10,000 products and reindexes them, once, right after `helm install`.
+  # Dev only: re-running is safe (fixed SEED-* SKUs), but production data doesn't come from a seed.
+  seed:
+    enabled: false
+    # Generates all 10,000 products in memory, then inserts them 1,000 at a time.
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 512Mi
+  # Gateway API HTTPRoute. The Gateway itself is platform-side (k8s/traefik/gateway.yaml).
+  route:
+    enabled: true
+    # Required when enabled, for example catalog.localhost (values-dev.yaml).
+    hostname: ""
+    gateway:
+      name: product-catalog
+      namespace: traefik
+      # The Gateway's listener to attach to.
+      sectionName: web
+
+searchService:
+  image:
+    repository: search-service
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 2
+  logLevel: info
+  # Empty: use the in-chart OpenSearch (the subchart below). Set it, with
+  # `opensearch.enabled: false`, to point at an OpenSearch outside the chart.
+  opensearchUrl: ""
+  pdb:
+    enabled: true
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+postgres:
+  image: postgres:18-alpine
+  auth:
+    database: catalog
+    username: catalog
+    # Required: no default password. Note that Helm stores every value in the release
+    # history (a Secret in the namespace), so production keeps the password out of values
+    # entirely (an existing Secret, or External Secrets from AWS Secrets Manager).
+    # POSTGRES_PASSWORD only applies when the volume is first initialised: changing it
+    # later changes the Secret, not the database user (that needs ALTER USER).
+    password: ""
+  storage:
+    # Empty: the cluster's default StorageClass (kind's `standard`).
+    storageClassName: ""
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+redis:
+  image: redis:8-alpine
+  # Below the memory limit, so a full cache evicts least-recently-used keys instead of
+  # growing until it's OOMKilled.
+  maxmemory: 96mb
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+# Values for the official OpenSearch subchart (opensearch-project/helm-charts, chart 3.9.0,
+# OpenSearch 3.9.0). Everything under this key is passed to that chart as its own values;
+# see `helm show values opensearch --repo https://opensearch-project.github.io/helm-charts/`.
+opensearch:
+  enabled: true
+  # One node: sets discovery.type=single-node and forces replicas to 1.
+  singleNode: true
+  # Keep the K4 names (ADR-0008): StatefulSet and pod search-service-opensearch(-0),
+  # Service search-service-opensearch (plus a -headless one).
+  fullnameOverride: search-service-opensearch
+  masterService: search-service-opensearch
+  # Added to the subchart's own labels. It sets name/instance/component itself
+  # (component = the StatefulSet's name), which we can't change.
+  labels:
+    app.kubernetes.io/part-of: product-catalog
+  opensearchJavaOpts: "-Xms512m -Xmx512m"
+  extraEnvs:
+    # search-service speaks plain HTTP without auth, so the security plugin (TLS and users) is off.
+    # Fine on kind; on AWS (T5) a managed OpenSearch inside the VPC takes over.
+    - name: DISABLE_SECURITY_PLUGIN
+      value: "true"
+    # Blocks auto-creating products* indices; search-service refuses to start otherwise (ADR-0007).
+    - name: action.auto_create_index
+      value: "-products*,+*"
+  securityConfig:
+    enabled: false
+  # Heap 512 MB; off-heap JVM and Lucene need the rest (K6 measured 906Mi anonymous memory idle).
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1536Mi
+    limits:
+      memory: 1536Mi
+  # The init container that copies opensearch.yml into place.
+  initResources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 64Mi
+  persistence:
+    size: 1Gi
+    # Skip the root `chown` init container (busybox:latest). K4 ran without it: kind's
+    # local-path volumes are already writable by OpenSearch's user (1000).
+    enableInitChown: false
+  # Readiness keeps the subchart's default, a TCP check on 9200. K4 used the cluster-health
+  # API instead, but Helm merges these maps into the subchart's defaults key by key, so an
+  # httpGet here would sit next to its tcpSocket, and a probe may have only one handler.
+  # `tcpSocket: null` would delete it from a -f file or --set, but not from this file
+  # (a parent chart's own nulls don't reach a subchart). Port open is a few seconds before
+  # yellow on one node, and search-service checks OpenSearch itself.
+  # Liveness: the HTTP layer answers. A red cluster stays alive; a restart wouldn't fix it.
+  # (The subchart's default is no liveness probe, so nothing to merge with.)
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3

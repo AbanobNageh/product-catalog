@@ -1,0 +1,41 @@
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "migration" "version" .Values.catalogApi.image.tag }}
+{{- with .Values.catalogApi }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-api-migrate
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+  annotations:
+    # A hook isn't applied with the other objects: Helm runs it at the named points and
+    # waits for the Job to complete. A failed hook fails the install or upgrade.
+    # - pre-upgrade: migrate with the new image before the Deployment rolls out (K3's order).
+    # - post-install: on the first install, Postgres is created by this same release, so a
+    #   pre-install hook would run before it exists. catalog-api starts before its tables
+    #   exist, but only on that first install, before any traffic.
+    "helm.sh/hook": post-install,pre-upgrade
+    # Lower weights run first: migrate (0) before seed (10).
+    "helm.sh/hook-weight": "0"
+    # Delete the previous Job just before creating the new one (a Job's template is
+    # immutable). The finished Job stays until then, so its logs can be read.
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  # Retries cover Postgres still starting on the first install (10s, 20s, 40s, 80s apart).
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: catalog-api-migrate
+        image: "{{ .migrateImage.repository }}:{{ .image.tag }}"
+        imagePullPolicy: {{ .image.pullPolicy }}
+        command: ["npx", "prisma", "migrate", "deploy"]
+        env:
+        {{- include "product-catalog.databaseEnv" $ | nindent 8 }}
+        resources:
+          {{- toYaml .migrate.resources | nindent 10 }}
+{{- end }}

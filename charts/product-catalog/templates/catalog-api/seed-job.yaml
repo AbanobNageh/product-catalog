@@ -1,0 +1,41 @@
+{{- if .Values.catalogApi.seed.enabled }}
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "seed" "version" .Values.catalogApi.image.tag }}
+{{- with .Values.catalogApi }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-api-seed
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+  annotations:
+    # After the migration hook (weight 0). Install only: upgrades don't reseed.
+    # It reindexes through catalog-api, so install with --wait: then post-install hooks run
+    # only once every pod is ready. Without it, the reindex can hit a catalog-api or
+    # OpenSearch that isn't up yet.
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: catalog-api-seed
+        # The runtime image ships the seed (ADR-0006); only the command differs.
+        image: "{{ .image.repository }}:{{ .image.tag }}"
+        imagePullPolicy: {{ .image.pullPolicy }}
+        command: ["node", "dist/seed/main.js"]
+        env:
+        {{- include "product-catalog.databaseEnv" $ | nindent 8 }}
+        # The reindex goes through the catalog-api Service, like any other client.
+        - name: CATALOG_API_URL
+          value: "http://catalog-api:3000"
+        resources:
+          {{- toYaml .seed.resources | nindent 10 }}
+{{- end }}
+{{- end }}

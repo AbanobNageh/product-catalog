@@ -1,0 +1,17 @@
+{{- if .Values.searchService.pdb.enabled }}
+{{- $labels := dict "root" $ "name" "search-service" "component" "api" "version" .Values.searchService.image.tag }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: search-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  # A drain keeps at least one of the pods serving. Postgres and Redis have one pod each,
+  # so a PDB there would only block drains.
+  minAvailable: {{ .Values.searchService.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
+{{- end }}

@@ -28,6 +28,9 @@ crash.log
 kubeconfig*
 *.kubeconfig
 
+# Helm: downloaded subcharts (Chart.lock IS committed; `helm dependency build` restores them)
+charts/*/charts/
+
 # Claude Code: personal, uncommitted overrides
 .claude/settings.local.json
 CLAUDE.local.md

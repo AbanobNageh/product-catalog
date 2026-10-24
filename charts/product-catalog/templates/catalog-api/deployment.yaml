@@ -1,0 +1,66 @@
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "api" "version" .Values.catalogApi.image.tag }}
+{{- with .Values.catalogApi }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  {{- /* With the HPA on, it owns the replica count: a value here would reset it on every upgrade. */}}
+  {{- if not .autoscaling.enabled }}
+  replicas: {{ .replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
+      annotations:
+        # Env vars are read only at start, so a ConfigMap change alone wouldn't reach running
+        # pods. The ConfigMap's hash in the pod template makes any change roll the pods.
+        checksum/config: {{ include (print $.Template.BasePath "/catalog-api/configmap.yaml") $ | sha256sum }}
+    spec:
+      containers:
+      - name: catalog-api
+        image: "{{ .image.repository }}:{{ .image.tag }}"
+        imagePullPolicy: {{ .image.pullPolicy }}
+        envFrom:
+        - configMapRef:
+            name: catalog-api
+        env:
+        {{- include "product-catalog.databaseEnv" $ | nindent 8 }}
+        ports:
+        - containerPort: 3000
+          name: http
+        # The CPU request is also the HPA's 100%.
+        resources:
+          {{- toYaml .resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          timeoutSeconds: 2
+        # /readyz checks Postgres (SELECT 1) and Redis.
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          timeoutSeconds: 3
+          periodSeconds: 5
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          failureThreshold: 30
+          periodSeconds: 10
+        # Keep serving while the endpoint removal reaches Traefik and kube-proxy.
+        lifecycle:
+          preStop:
+            sleep:
+              seconds: 15
+{{- end }}

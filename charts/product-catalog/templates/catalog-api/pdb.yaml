@@ -1,0 +1,17 @@
+{{- if .Values.catalogApi.pdb.enabled }}
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "api" "version" .Values.catalogApi.image.tag }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalog-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  # Voluntary disruptions (kubectl drain, node upgrades) may evict a pod only while at least
+  # this many other ready pods stay up. Crashes and OOMKills aren't covered.
+  minAvailable: {{ .Values.catalogApi.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
+{{- end }}

@@ -1,31 +1,26 @@
+{{- $labels := dict "root" $ "name" "postgres" "component" "database" }}
+{{- with .Values.postgres }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: catalog-api-postgres
-  namespace: catalog
+  namespace: {{ $.Release.Namespace }}
   labels:
-    app.kubernetes.io/name: postgres
-    app.kubernetes.io/instance: catalog-api-postgres
-    app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: product-catalog
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
 spec:
   replicas: 1
-  serviceName: "catalog-api-postgres"
+  serviceName: catalog-api-postgres
   selector:
     matchLabels:
-      app.kubernetes.io/name: postgres
-      app.kubernetes.io/instance: catalog-api-postgres
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: postgres
-        app.kubernetes.io/instance: catalog-api-postgres
-        app.kubernetes.io/component: database
-        app.kubernetes.io/part-of: product-catalog
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
     spec:
       containers:
       - name: postgres
-        image: postgres:18-alpine
+        image: {{ .image }}
         env:
         - name: POSTGRES_DB
           valueFrom:
@@ -44,13 +39,10 @@ spec:
               key: POSTGRES_PASSWORD
         ports:
         - containerPort: 5432
+          name: postgres
         # shared_buffers (128MB by default) plus about 10MB per connection, plus headroom.
         resources:
-          requests:
-            cpu: 250m
-            memory: 512Mi
-          limits:
-            memory: 512Mi
+          {{- toYaml .resources | nindent 10 }}
         # pg_isready over TCP, like the clients. During first-time init Postgres listens
         # on its Unix socket only, so the pod stays not-ready until init has finished.
         # sh -c expands the env vars; a probe's exec command has no $(VAR) substitution.
@@ -60,19 +52,21 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
         volumeMounts:
-        - name: catalog-api-postgres-volume
+        - name: data
           mountPath: /var/lib/postgresql
   volumeClaimTemplates:
   - metadata:
-      name: catalog-api-postgres-volume
+      # The PVC is named <template>-<pod>: data-catalog-api-postgres-0.
+      name: data
       labels:
-        app.kubernetes.io/name: postgres
-        app.kubernetes.io/instance: catalog-api-postgres
-        app.kubernetes.io/component: database
-        app.kubernetes.io/part-of: product-catalog
+        # Stable labels only: volumeClaimTemplates can't change after creation.
+        {{- include "product-catalog.stableLabels" $labels | nindent 8 }}
     spec:
       accessModes: ["ReadWriteOnce"]
-      storageClassName: "standard"
+      {{- with .storage.storageClassName }}
+      storageClassName: {{ . }}
+      {{- end }}
       resources:
         requests:
-          storage: 1Gi
+          storage: {{ .storage.size }}
+{{- end }}

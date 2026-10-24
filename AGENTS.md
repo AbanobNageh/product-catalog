@@ -52,33 +52,36 @@ search-service (`services/search-service`):
 - Try a search: `curl.exe -s "localhost:8080/search?q=phone&category=electronics&minPrice=10000&inStock=true&sort=price_asc"`
 - Image (from the repo root): `docker build -t search-service:0.1.0 services/search-service`. Run it on the Compose network: `docker run --rm --network product-catalog_default -p 8080:8080 -e OPENSEARCH_URL=http://opensearch:9200 search-service:0.1.0`
 
-Cluster (kind, repo root):
+Cluster (kind, repo root). A fresh cluster needs, in order: create, load images, platform, app.
 - Create: `kind create cluster --config k8s/kind-config.yaml`. This creates cluster `catalog` (context `kind-catalog`) with 1 control-plane and 2 workers
 - Delete: `kind delete cluster --name catalog`. First check `kubectl config current-context` says `kind-catalog`
 - Port mappings (`127.0.0.1:80/443` → `catalog-worker`, labelled `catalog/role=gateway-node`) can only change by deleting and recreating the cluster
+- Load our images (always with `--name catalog`; without it kind looks for a cluster named `kind`): `kind load docker-image catalog-api:<v> catalog-api-migrate:<v> search-service:<v> --name catalog`. `kind load` fails for the multi-platform OpenSearch image, so each node pulls it (1.2 GB, several minutes the first time)
 - Preview an apply: `kubectl diff -f <file>`. In PowerShell it needs a `diff` program on the PATH first: `$env:Path += ";C:\Program Files\Git\usr\bin"`
-- Release catalog-api `<v>`:
-  1. Build both images from the same commit (see catalog-api above).
-  2. Load them: `kind load docker-image catalog-api:<v> catalog-api-migrate:<v> --name catalog`
-  3. Set `<v>` in `k8s/catalog-api/migratejob.yaml` and `deployment.yaml`.
-  4. Migrate first. A Job's template is immutable, so delete it and re-apply it: `kubectl delete job catalog-api-migrate -n catalog`, `kubectl apply -f k8s/catalog-api/migratejob.yaml`, then `kubectl wait --for=condition=complete job/catalog-api-migrate -n catalog --timeout=120s`.
-  5. Roll out: `kubectl apply -f k8s/catalog-api/deployment.yaml`, then `kubectl rollout status deploy/catalog-api -n catalog`.
-  - Roll back with `kubectl rollout undo deploy/catalog-api -n catalog`, then set the file back to the running version.
-  - `migrate deploy` refuses a non-empty database that has no `_prisma_migrations` table (P3005)
-- Search side: `kubectl apply -f k8s/opensearch/`, then `kubectl rollout status statefulset/search-service-opensearch -n catalog --timeout=10m`, then `kubectl apply -f k8s/search-service/`. `kind load` fails for the multi-platform OpenSearch image, so each node pulls it (1.2 GB, several minutes the first time); `kind load docker-image search-service:<v> --name catalog` works
-- Check OpenSearch: `kubectl exec -n catalog search-service-opensearch-0 -- curl -s "localhost:9200/_cat/indices/products*?v"`
-- Seed in the cluster (re-running is safe; a Job's template is immutable, so delete it first): `kubectl delete job catalog-api-seed -n catalog --ignore-not-found`, `kubectl apply -f k8s/catalog-api/seedjob.yaml`, `kubectl wait --for=condition=complete job/catalog-api-seed -n catalog --timeout=10m`, then `kubectl logs job/catalog-api-seed -n catalog`
-- Search end to end: `kubectl port-forward svc/catalog-api 3000:3000 -n catalog` (stop Compose's catalog-api first), then `curl.exe -s "localhost:3000/products/search?q=phone"`
 - After a reboot: start Docker Desktop first. The kind nodes restart with it, and the pods come back within a minute or two (search-service restarts a couple of times while OpenSearch boots)
-- Traefik (ADR-0010), in this order. After `winget install Helm.Helm`, open a new terminal so `helm` is on the PATH:
-  1. Chart repo: `helm repo add traefik https://traefik.github.io/charts`, then `helm repo update`.
-  2. Gateway API CRDs (the chart doesn't ship them): `kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml`
-  3. Install: `helm install traefik traefik/traefik --version 42.1.3 -n traefik --create-namespace -f k8s/traefik/values.yaml`. After a values change, run the same command with `helm upgrade` instead of `helm install`. Check it with `helm list -n traefik`.
-  4. Routes: `kubectl apply -f k8s/traefik/gateway.yaml -f k8s/catalog-api/httproute.yaml`. Check: `kubectl get gateway -n traefik` (`PROGRAMMED True`) and `kubectl describe httproute catalog-api -n catalog` (`Accepted` and `ResolvedRefs` True).
-  - Test: `curl.exe -s http://catalog.localhost/healthz`. No `port-forward` is needed. Plain `localhost` returns 404 (no route for that Host)
-- metrics-server: `helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/`, `helm repo update`, then `helm install metrics-server metrics-server/metrics-server --version 3.14.0 -n kube-system -f k8s/metrics-server/values.yaml` (`helm upgrade` after a values change). Check: `kubectl top nodes`, `kubectl top pods -A`
-- Requests and limits follow ADR-0011 (memory request = limit, CPU request only). A container's real memory: `kubectl exec <pod> -n catalog -- cat /sys/fs/cgroup/memory.stat` (`anon` can't be reclaimed)
-- HPA and PDBs: `kubectl apply -f k8s/catalog-api/hpa.yaml -f k8s/catalog-api/pdb.yaml -f k8s/search-service/pdb.yaml`. Check: `kubectl get hpa,pdb -n catalog`. The HPA owns catalog-api's replica count, so never put `replicas` back in `deployment.yaml`
+
+Platform (installed once per cluster, before the app). After `winget install Helm.Helm`, open a new terminal so `helm` is on the PATH:
+- Chart repos: `helm repo add traefik https://traefik.github.io/charts`, `helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/`, then `helm repo update`
+- Traefik (ADR-0010), in this order:
+  1. Gateway API CRDs (the chart doesn't ship them): `kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml`
+  2. Install: `helm install traefik traefik/traefik --version 42.1.3 -n traefik --create-namespace -f k8s/traefik/values.yaml`. After a values change, run the same command with `helm upgrade` instead of `helm install`.
+  3. Gateway: `kubectl apply -f k8s/traefik/gateway.yaml`. Check: `kubectl get gateway -n traefik` (`PROGRAMMED True`)
+- metrics-server: `helm install metrics-server metrics-server/metrics-server --version 3.14.0 -n kube-system -f k8s/metrics-server/values.yaml` (`helm upgrade` after a values change). Check: `kubectl top nodes`, `kubectl top pods -A`
+- Check both: `helm list -A`
+
+App: the Helm chart `charts/product-catalog` (release `product-catalog` in namespace `catalog`, one release per namespace; ADR-0012, ADR-0013):
+- After a fresh clone, restore the OpenSearch subchart from `Chart.lock`: `helm dependency build charts/product-catalog` (`helm dependency update` only to change its version)
+- Render without touching the cluster: `helm template product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-dev.yaml` (add `-s templates/<path>` for one file). Lint: `helm lint charts/product-catalog -f charts/product-catalog/values-dev.yaml --strict`
+- Install: `helm install product-catalog charts/product-catalog -n catalog --create-namespace -f charts/product-catalog/values-dev.yaml --wait --timeout 15m`. `--wait` is required: the post-install hooks (migrate, then seed) must run after every pod is ready. About 10 minutes on a fresh cluster (image pulls)
+- Release catalog-api `<v>`: build both images from the same commit (see catalog-api above), `kind load` them, then `helm upgrade product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-dev.yaml --set catalogApi.image.tag=<v> --wait --timeout 10m`. The pre-upgrade hook migrates before the rollout. Always pass `-f values-dev.yaml` again: an upgrade starts from `values.yaml` plus what you pass now. search-service: `--set searchService.image.tag=<v>`
+- History and rollback: `helm history product-catalog -n catalog`, `helm rollback product-catalog <revision> -n catalog --wait`. A rollback restores manifests only; no migration runs or is undone
+- What a revision was installed with: `helm get values product-catalog -n catalog --revision <n>` (`--all` for the merged values)
+- Hook logs: `kubectl logs job/catalog-api-migrate -n catalog`, `kubectl logs job/catalog-api-seed -n catalog`. `helm uninstall` leaves these Jobs behind
+- Check: `kubectl get pods,hpa,pdb -n catalog`, `curl.exe -s http://catalog.localhost/healthz`, `curl.exe -s "http://catalog.localhost/products/search?q=phone"`. Plain `localhost` returns 404 (no route for that Host)
+- Check OpenSearch: `kubectl exec -n catalog search-service-opensearch-0 -- curl -s "localhost:9200/_cat/indices/products*?v"`
+- Reseed (re-running is safe; a Job's template is immutable, so delete it first): `kubectl delete job catalog-api-seed -n catalog --ignore-not-found`, `helm template product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-dev.yaml -s templates/catalog-api/seed-job.yaml | kubectl apply -f -`, then `kubectl wait --for=condition=complete job/catalog-api-seed -n catalog --timeout=10m`
+- Requests and limits follow ADR-0011 (memory request = limit, CPU request only) and live in `values.yaml`. A container's real memory: `kubectl exec <pod> -n catalog -- cat /sys/fs/cgroup/memory.stat` (`anon` can't be reclaimed)
+- The HPA owns catalog-api's replica count: the Deployment template leaves `replicas` out while `catalogApi.autoscaling.enabled` is true
 - Load test (k6: `winget install k6 --source winget`): `k6 run loadtest/catalog-api.js` (50 VUs, 5½ min). Watch with `kubectl get hpa catalog-api -n catalog -w`; it scales back down 5 min after the load ends
 
 ## Who writes what

@@ -1,47 +1,37 @@
+{{- $labels := dict "root" $ "name" "search-service" "component" "api" "version" .Values.searchService.image.tag }}
+{{- with .Values.searchService }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: search-service
-  namespace: catalog
+  namespace: {{ $.Release.Namespace }}
   labels:
-    app.kubernetes.io/name: search-service
-    app.kubernetes.io/instance: search-service
-    app.kubernetes.io/component: api
-    app.kubernetes.io/part-of: product-catalog
-  annotations:
-    kubernetes.io/change-cause: "0.1.0: first in-cluster release"
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
 spec:
-  replicas: 2
+  replicas: {{ .replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: search-service
-      app.kubernetes.io/instance: search-service
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: search-service
-        app.kubernetes.io/instance: search-service
-        app.kubernetes.io/component: api
-        app.kubernetes.io/part-of: product-catalog
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
     spec:
       containers:
       - name: search-service
-        image: search-service:0.1.0
+        image: "{{ .image.repository }}:{{ .image.tag }}"
+        imagePullPolicy: {{ .image.pullPolicy }}
         env:
+        # `default` uses the in-chart OpenSearch Service unless an external URL is given.
         - name: OPENSEARCH_URL
-          value: "http://search-service-opensearch:9200"
+          value: {{ .opensearchUrl | default (printf "http://%s:9200" $.Values.opensearch.masterService) | quote }}
         - name: LOG_LEVEL
-          value: "info"
+          value: {{ .logLevel | quote }}
         ports:
         - containerPort: 8080
           name: http
-        # ADR-0011: memory request = limit, no CPU limit.
         resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            memory: 128Mi
+          {{- toYaml .resources | nindent 10 }}
         # The server listens only once OpenSearch is reachable (it waits up to 30s, then exits).
         startupProbe:
           httpGet:
@@ -65,3 +55,4 @@ spec:
           preStop:
             sleep:
               seconds: 5
+{{- end }}

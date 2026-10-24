@@ -1,0 +1,36 @@
+{{- $labels := dict "root" $ "name" "redis" "component" "cache" }}
+{{- with .Values.redis }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api-redis
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  # One replica: two would be two separate caches (no replication).
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "product-catalog.selectorLabels" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
+    spec:
+      containers:
+      - name: redis
+        image: {{ .image }}
+        args: ["redis-server", "--maxmemory", {{ .maxmemory | quote }}, "--maxmemory-policy", "allkeys-lru"]
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          {{- toYaml .resources | nindent 10 }}
+        # Not ready = out of the Service's endpoints. Compose uses the same check.
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          periodSeconds: 5
+          timeoutSeconds: 3
+{{- end }}

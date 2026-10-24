@@ -1,0 +1,20 @@
+# The chart's identity. `version` is the chart's own version: bump it whenever a template
+# or a default value changes. It is independent of the apps' versions.
+apiVersion: v2
+name: product-catalog
+description: catalog-api and search-service, with Postgres, Redis and OpenSearch
+type: application
+version: 0.1.0
+# No appVersion: the chart deploys two apps that release separately (catalog-api 0.1.1,
+# search-service 0.1.0). Each workload's `app.kubernetes.io/version` label carries its own
+# image tag instead.
+
+# Subcharts. `helm dependency update` downloads them into charts/ (git-ignored) and pins
+# the exact version in Chart.lock (committed); `helm dependency build` restores from the lock.
+dependencies:
+  - name: opensearch
+    version: 3.9.0
+    repository: https://opensearch-project.github.io/helm-charts/
+    # `opensearch.enabled: false` skips the subchart, for a managed OpenSearch (T5)
+    # given through `searchService.opensearchUrl`.
+    condition: opensearch.enabled

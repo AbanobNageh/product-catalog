@@ -1,0 +1,13 @@
+{{- $labels := dict "root" $ "name" "catalog-api" "component" "api" "version" .Values.catalogApi.image.tag }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-api
+  # Helm installs into the release namespace (-n) either way; writing it out keeps
+  # `helm template ... | kubectl apply -f -` landing in the same place.
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+data:
+  REDIS_URL: "redis://catalog-api-redis:6379/0"
+  SEARCH_SERVICE_URL: "http://search-service:8080"

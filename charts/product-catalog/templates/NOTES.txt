@@ -1,0 +1,18 @@
+{{/* Printed after every install and upgrade. */ -}}
+Release {{ .Release.Name }} (revision {{ .Release.Revision }}) in namespace {{ .Release.Namespace }}.
+catalog-api {{ .Values.catalogApi.image.tag }}, search-service {{ .Values.searchService.image.tag }}.
+
+Check:
+  kubectl get pods,hpa,pdb -n {{ .Release.Namespace }}
+  kubectl logs job/catalog-api-migrate -n {{ .Release.Namespace }}
+{{- if .Values.catalogApi.seed.enabled }}
+  kubectl logs job/catalog-api-seed -n {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.catalogApi.route.enabled }}
+  curl.exe -s http://{{ .Values.catalogApi.route.hostname }}/healthz
+{{- end }}
+
+History and rollback:
+  helm history {{ .Release.Name }} -n {{ .Release.Namespace }}
+  helm rollback {{ .Release.Name }} <revision> -n {{ .Release.Namespace }}
+  (A rollback restores the manifests, not the database: migrations aren't undone.)

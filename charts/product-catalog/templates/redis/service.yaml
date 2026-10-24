@@ -1,0 +1,16 @@
+{{- $labels := dict "root" $ "name" "redis" "component" "cache" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "product-catalog.selectorLabels" $labels | nindent 4 }}
+  ports:
+  - protocol: TCP
+    name: redis
+    port: 6379
+    targetPort: redis
