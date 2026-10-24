@@ -11,8 +11,8 @@ A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, wit
 
 ## Setup
 - Host: Windows 11, Docker Desktop (WSL2). Give **PowerShell** commands.
-- Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), kind 0.33, Helm 4.3.1, k6, Go 1.26, Node 24.
-- Install when the module starts: Terraform (`winget install Hashicorp.Terraform`, then a new terminal). Optional: k9s (`winget install Derailed.k9s`).
+- Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), kind 0.33, Helm 4.3.1, Terraform 1.16.6 (winget), k6, Go 1.26, Node 24.
+- Optional: k9s (`winget install Derailed.k9s`).
 - **Docker Desktop memory:** WSL2 needs at least 8 GB (in `.wslconfig`).
 
 ## Commands
@@ -82,6 +82,11 @@ App: the Helm chart `charts/product-catalog` (release `product-catalog` in names
 - Requests and limits follow ADR-0011 (memory request = limit, CPU request only) and live in `values.yaml`. A container's real memory: `kubectl exec <pod> -n catalog -- cat /sys/fs/cgroup/memory.stat` (`anon` can't be reclaimed)
 - The HPA owns catalog-api's replica count: the Deployment template leaves `replicas` out while `catalogApi.autoscaling.enabled` is true
 - Load test (k6: `winget install k6 --source winget`): `k6 run loadtest/catalog-api.js` (50 VUs, 5½ min). Watch with `kubectl get hpa catalog-api -n catalog -w`; it scales back down 5 min after the load ends
+
+Terraform (run each command from the config's folder, or pass `-chdir=<folder>`). After `winget install Hashicorp.Terraform`, open a new terminal so `terraform` is on the PATH. winget lags behind upstream, so ignore the "out of date" notice:
+- `terraform/docker-basics` (T0–T1, Docker provider, no cluster needed): `terraform init` (first run, and after a provider change; it fills `.terraform/` and writes the committed `.terraform.lock.hcl`), `terraform plan`, `terraform apply` (type `yes`), `terraform destroy`. It runs `tf-redis` on `127.0.0.1:6380` (Compose's Redis keeps 6379). Check: `docker exec tf-redis redis-cli ping`
+- State: `terraform state list`, `terraform state show <address>` (for example `docker_container.redis`). `terraform.tfstate` is local and git-ignored
+- Format / validate: `terraform fmt -check` (`terraform fmt` fixes) / `terraform validate`
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.
