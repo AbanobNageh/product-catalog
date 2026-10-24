@@ -35,14 +35,13 @@ spec:
         ports:
         - containerPort: 8080
           name: http
-        # Stateless: memory request below the limit is fine here.
+        # ADR-0011: memory request = limit, no CPU limit.
         resources:
           requests:
             cpu: 100m
-            memory: 64Mi
+            memory: 128Mi
           limits:
-            cpu: "1"
-            memory: 256Mi
+            memory: 128Mi
         # The server listens only once OpenSearch is reachable (it waits up to 30s, then exits).
         startupProbe:
           httpGet:

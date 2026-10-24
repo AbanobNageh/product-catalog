@@ -76,6 +76,10 @@ Cluster (kind, repo root):
   3. Install: `helm install traefik traefik/traefik --version 42.1.3 -n traefik --create-namespace -f k8s/traefik/values.yaml`. After a values change, run the same command with `helm upgrade` instead of `helm install`. Check it with `helm list -n traefik`.
   4. Routes: `kubectl apply -f k8s/traefik/gateway.yaml -f k8s/catalog-api/httproute.yaml`. Check: `kubectl get gateway -n traefik` (`PROGRAMMED True`) and `kubectl describe httproute catalog-api -n catalog` (`Accepted` and `ResolvedRefs` True).
   - Test: `curl.exe -s http://catalog.localhost/healthz`. No `port-forward` is needed. Plain `localhost` returns 404 (no route for that Host)
+- metrics-server: `helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/`, `helm repo update`, then `helm install metrics-server metrics-server/metrics-server --version 3.14.0 -n kube-system -f k8s/metrics-server/values.yaml` (`helm upgrade` after a values change). Check: `kubectl top nodes`, `kubectl top pods -A`
+- Requests and limits follow ADR-0011 (memory request = limit, CPU request only). A container's real memory: `kubectl exec <pod> -n catalog -- cat /sys/fs/cgroup/memory.stat` (`anon` can't be reclaimed)
+- HPA and PDBs: `kubectl apply -f k8s/catalog-api/hpa.yaml -f k8s/catalog-api/pdb.yaml -f k8s/search-service/pdb.yaml`. Check: `kubectl get hpa,pdb -n catalog`. The HPA owns catalog-api's replica count, so never put `replicas` back in `deployment.yaml`
+- Load test (k6: `winget install k6 --source winget`): `k6 run loadtest/catalog-api.js` (50 VUs, 5½ min). Watch with `kubectl get hpa catalog-api -n catalog -w`; it scales back down 5 min after the load ends
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.

@@ -1,0 +1,18 @@
+# Values for the official metrics-server chart (metrics-server/metrics-server 3.14.0, metrics-server v0.9.0).
+# Only the settings that differ from the chart's defaults (`helm show values metrics-server/metrics-server`).
+# Installed in kube-system: it's cluster-wide plumbing, like CoreDNS, not part of the app.
+
+# metrics-server reads each node's kubelet over HTTPS. kind's kubelets use self-signed
+# serving certificates that no CA in the cluster vouches for, so the TLS check fails
+# ("x509: cannot validate certificate") and `kubectl top` stays empty.
+# Local clusters only: on EKS or GKE the kubelet certificates are signed, so drop this.
+args:
+  - --kubelet-insecure-tls
+
+# The chart's requests, plus a memory limit equal to the request (ADR-0011).
+resources:
+  requests:
+    cpu: 100m
+    memory: 200Mi
+  limits:
+    memory: 200Mi

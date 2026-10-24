@@ -21,6 +21,12 @@ spec:
       - name: catalog-api-migrate
         image: catalog-api-migrate:0.1.1
         command: ["npx", "prisma",  "migrate", "deploy"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 256Mi
         env:
         - name: POSTGRES_DB
           valueFrom:

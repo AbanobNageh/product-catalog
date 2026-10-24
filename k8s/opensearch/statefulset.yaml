@@ -42,14 +42,15 @@ spec:
         ports:
         - containerPort: 9200
           name: http
-        # Heap is 512 MB; the rest is off-heap JVM memory and Lucene. Memory request = limit.
+        # Heap is 512 MB; the rest is off-heap JVM memory and Lucene. At 1Gi it used 906Mi
+        # of anonymous memory while idle (K6), so 1536Mi leaves room under load.
+        # ADR-0011: memory request = limit, no CPU limit.
         resources:
           requests:
             cpu: 500m
-            memory: 1Gi
+            memory: 1536Mi
           limits:
-            cpu: "2"
-            memory: 1Gi
+            memory: 1536Mi
         # Up to 3 minutes to boot before liveness and readiness start.
         startupProbe:
           httpGet:

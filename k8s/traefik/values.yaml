@@ -37,9 +37,10 @@ providers:
 gateway:
   enabled: false
 
+# ADR-0011: memory request = limit, no CPU limit.
 resources:
   requests:
     cpu: 100m
-    memory: 64Mi
+    memory: 128Mi
   limits:
-    memory: 256Mi
+    memory: 128Mi

@@ -11,7 +11,8 @@ metadata:
   annotations:
     kubernetes.io/change-cause: "0.1.1: version in /healthz"
 spec:
-  replicas: 2
+  # No `replicas`: the HPA (hpa.yaml) sets it. With a value here, every apply would reset
+  # the count and fight the HPA.
   selector:
     matchLabels:
       app.kubernetes.io/name: catalog-api
@@ -40,6 +41,13 @@ spec:
         ports:
         - containerPort: 3000
           name: http
+        # ADR-0011: memory request = limit, no CPU limit. The CPU request is also the HPA's 100%.
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            memory: 256Mi
         livenessProbe:
           httpGet:
             path: /healthz
