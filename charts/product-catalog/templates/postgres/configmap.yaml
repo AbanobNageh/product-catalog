@@ -1,3 +1,4 @@
+{{- if .Values.postgres.enabled }}
 {{- $labels := dict "root" $ "name" "postgres" "component" "database" }}
 apiVersion: v1
 kind: ConfigMap
@@ -8,3 +9,4 @@ metadata:
     {{- include "product-catalog.labels" $labels | nindent 4 }}
 data:
   POSTGRES_DB: {{ .Values.postgres.auth.database | quote }}
+{{- end }}

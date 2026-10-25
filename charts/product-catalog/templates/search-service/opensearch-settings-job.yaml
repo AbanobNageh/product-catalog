@@ -1,0 +1,52 @@
+{{- if .Values.searchService.opensearchSettings.enabled }}
+{{- $labels := dict "root" $ "name" "search-service" "component" "settings" "version" .Values.searchService.image.tag }}
+{{- with .Values.searchService }}
+# Sets action.auto_create_index on an external OpenSearch before search-service starts
+# (ADR-0007, ADR-0018). Amazon OpenSearch Service has no domain option for it, but accepts
+# it through _cluster/settings in the "flat" form used here. The domain is only reachable
+# from inside the VPC, so this runs as a pod rather than from a laptop.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: search-service-opensearch-settings
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "product-catalog.labels" $labels | nindent 4 }}
+  annotations:
+    # Before anything else in the release, on install and on every upgrade (it's idempotent:
+    # PUT the same value again). Weight -5: before the migration hook (0) on upgrades.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  # Retries cover a domain that isn't reachable yet (10s, 20s, 40s, 80s apart).
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        {{- include "product-catalog.labels" $labels | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: opensearch-settings
+        image: {{ .opensearchSettings.image | quote }}
+        # --fail-with-body: exit non-zero on an HTTP error (so the Job fails) but still
+        # print OpenSearch's error message to the log.
+        command:
+        - curl
+        - --fail-with-body
+        - --silent
+        - --show-error
+        - --max-time
+        - "30"
+        - -X
+        - PUT
+        - -H
+        - "Content-Type: application/json"
+        - --data
+        - '{"persistent":{"action.auto_create_index":"-products*,+*"}}'
+        - {{ printf "%s/_cluster/settings" (required "searchService.opensearchUrl is required with opensearchSettings.enabled" .opensearchUrl) | quote }}
+        resources:
+          {{- toYaml .opensearchSettings.resources | nindent 10 }}
+{{- end }}
+{{- end }}

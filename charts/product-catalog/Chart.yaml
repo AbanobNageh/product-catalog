@@ -4,7 +4,7 @@ apiVersion: v2
 name: product-catalog
 description: catalog-api and search-service, with Postgres, Redis and OpenSearch
 type: application
-version: 0.1.0
+version: 0.2.0
 # No appVersion: the chart deploys two apps that release separately (catalog-api 0.1.1,
 # search-service 0.1.0). Each workload's `app.kubernetes.io/version` label carries its own
 # image tag instead.

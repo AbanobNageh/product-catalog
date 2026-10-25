@@ -46,9 +46,24 @@ helm.sh/chart: {{ printf "%s-%s" .root.Chart.Name .root.Chart.Version }}
 
 {{/*
 The env vars every catalog-api container needs to reach Postgres: the API, the migration
-and the seed. Kubernetes expands $(VAR) from the variables listed before it.
+and the seed. Takes the root context ($).
+- External database (catalogApi.database.existingSecret): DATABASE_URL straight from that
+  Secret. The URL is built outside the chart, because the password may need URL-encoding,
+  which $(VAR) expansion can't do.
+- In-chart Postgres: built from the parts. Kubernetes expands $(VAR) from the variables
+  listed before it.
+Plus NODE_EXTRA_CA_CERTS when catalogApi.extraCaCerts is set: Node then trusts those CAs
+on top of its built-in list (the file is mounted by the extraCa* helpers below).
 */}}
 {{- define "product-catalog.databaseEnv" -}}
+{{- /* `-}}` here trims the line break after the tag, so the output starts with "- name". */ -}}
+{{- with .Values.catalogApi.database.existingSecret -}}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ . }}
+      key: DATABASE_URL
+{{- else -}}
 - name: POSTGRES_DB
   valueFrom:
     configMapKeyRef:
@@ -66,4 +81,32 @@ and the seed. Kubernetes expands $(VAR) from the variables listed before it.
       key: POSTGRES_PASSWORD
 - name: DATABASE_URL
   value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@catalog-api-postgres:5432/$(POSTGRES_DB)"
+{{- end }}
+{{- with .Values.catalogApi.extraCaCerts.configMap }}
+- name: NODE_EXTRA_CA_CERTS
+  value: "/etc/ssl/extra-ca/{{ required "catalogApi.extraCaCerts.key is required with extraCaCerts.configMap" $.Values.catalogApi.extraCaCerts.key }}"
+{{- end }}
+{{- end }}
+
+{{/*
+The extra CA certificates' volume (pod level) and mount (container level), for the
+catalog-api pods. Both render nothing when catalogApi.extraCaCerts.configMap is empty, so
+the templates include them with `with`, which skips an empty result.
+*/}}
+{{- define "product-catalog.extraCaVolumes" -}}
+{{- with .Values.catalogApi.extraCaCerts.configMap }}
+volumes:
+- name: extra-ca-certs
+  configMap:
+    name: {{ . }}
+{{- end }}
+{{- end }}
+
+{{- define "product-catalog.extraCaVolumeMounts" -}}
+{{- with .Values.catalogApi.extraCaCerts.configMap }}
+volumeMounts:
+- name: extra-ca-certs
+  mountPath: /etc/ssl/extra-ca
+  readOnly: true
+{{- end }}
 {{- end }}

@@ -50,10 +50,26 @@ catalogApi:
         memory: 512Mi
       limits:
         memory: 512Mi
+  # Where catalog-api finds Postgres. Empty: build DATABASE_URL from the in-chart Postgres
+  # (postgres.enabled). For an external database (RDS on AWS, with postgres.enabled: false),
+  # the name of an existing Secret with a complete DATABASE_URL key. A Secret, not a value:
+  # values end up in Helm's release history, and the URL holds the password.
+  database:
+    existingSecret: ""
+  # Where catalog-api finds Redis. Empty: the in-chart Redis (redis.enabled). For an external
+  # one (ElastiCache on AWS, with redis.enabled: false), its URL; rediss:// means TLS.
+  redisUrl: ""
+  # Extra CA certificates that Node should trust, from an existing ConfigMap: for TLS to
+  # servers whose certificate authority isn't in Node's built-in list (RDS on AWS). Mounted
+  # into the API, migration and seed pods, and named in NODE_EXTRA_CA_CERTS. Empty: none.
+  extraCaCerts:
+    configMap: ""
+    key: ""
   # Gateway API HTTPRoute. The Gateway itself is platform-side (k8s/traefik/values.yaml).
   route:
     enabled: true
-    # Required when enabled, for example catalog.localhost (values-dev.yaml).
+    # For example catalog.localhost (values-dev.yaml). Empty: the route matches any host
+    # (AWS, where the load balancer's DNS name is only known after it exists).
     hostname: ""
     gateway:
       name: product-catalog
@@ -71,6 +87,19 @@ searchService:
   # Empty: use the in-chart OpenSearch (the subchart below). Set it, with
   # `opensearch.enabled: false`, to point at an OpenSearch outside the chart.
   opensearchUrl: ""
+  # A hook Job that sets action.auto_create_index to "-products*,+*" on an external
+  # OpenSearch before search-service starts (ADR-0007: search-service refuses to start
+  # without it). The in-chart OpenSearch gets it from an env var instead (opensearch.extraEnvs);
+  # Amazon OpenSearch Service only through its _cluster/settings API (ADR-0018).
+  opensearchSettings:
+    enabled: false
+    image: curlimages/curl:8.22.0
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 32Mi
   pdb:
     enabled: true
     minAvailable: 1
@@ -82,6 +111,8 @@ searchService:
       memory: 128Mi
 
 postgres:
+  # false: no in-chart Postgres; set catalogApi.database.existingSecret instead.
+  enabled: true
   image: postgres:18-alpine
   auth:
     database: catalog
@@ -104,6 +135,8 @@ postgres:
       memory: 512Mi
 
 redis:
+  # false: no in-chart Redis; set catalogApi.redisUrl instead.
+  enabled: true
   image: redis:8-alpine
   # Below the memory limit, so a full cache evicts least-recently-used keys instead of
   # growing until it's OOMKilled.

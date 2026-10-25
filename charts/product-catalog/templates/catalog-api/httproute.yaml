@@ -14,9 +14,12 @@ spec:
   - name: {{ .gateway.name }}
     namespace: {{ .gateway.namespace }}
     sectionName: {{ .gateway.sectionName }}
+  # Without hostnames, the route matches requests for any host (AWS: the load balancer's
+  # DNS name, known only after it exists).
+  {{- with .hostname }}
   hostnames:
-  # `required` stops the install with this message when the value is empty.
-  - {{ required "catalogApi.route.hostname is required when the route is enabled (for example catalog.localhost)" .hostname | quote }}
+  - {{ . | quote }}
+  {{- end }}
   rules:
   - matches:
     - path:

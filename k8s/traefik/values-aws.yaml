@@ -1,0 +1,35 @@
+# Traefik on EKS (T5, ADR-0018), layered on top of values.yaml (the kind settings).
+# Installed by terraform/aws/app through modules/platform.
+#
+# In layered values files, `null` deletes a key set by an earlier file, so the kind-only
+# settings below fall back to the chart's defaults.
+
+# kind pins Traefik to the one node with host port 80. On EKS any node will do.
+nodeSelector: null
+
+ports:
+  web:
+    hostPort: null
+
+# The chart's default rolling update again (start the new pod, then stop the old one):
+# without a host port, two Traefik pods can run side by side.
+updateStrategy:
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# A Service of type LoadBalancer: the AWS Load Balancer Controller sees it and creates a
+# Network Load Balancer (NLB) in the public subnets that forwards to Traefik's pods.
+# loadBalancerSourceRanges (only your IP) is added by the app root from admin_cidrs; the
+# controller turns it into the NLB's security group rules.
+service:
+  annotations:
+    # "external": handled by the AWS Load Balancer Controller, not EKS's legacy built-in one.
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    # Send traffic straight to the pods' VPC IPs (the VPC CNI gives each pod one), rather
+    # than to a port on every node.
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    # Reachable from the internet (subject to the source ranges), so in the public subnets.
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+  spec:
+    type: LoadBalancer

@@ -24,6 +24,9 @@ spec:
         {{- include "product-catalog.labels" $labels | nindent 8 }}
     spec:
       restartPolicy: Never
+      {{- with include "product-catalog.extraCaVolumes" $ }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
       - name: catalog-api-seed
         # The runtime image ships the seed (ADR-0006); only the command differs.
@@ -35,6 +38,9 @@ spec:
         # The reindex goes through the catalog-api Service, like any other client.
         - name: CATALOG_API_URL
           value: "http://catalog-api:3000"
+        {{- with include "product-catalog.extraCaVolumeMounts" $ }}
+        {{- . | nindent 8 }}
+        {{- end }}
         resources:
           {{- toYaml .seed.resources | nindent 10 }}
 {{- end }}

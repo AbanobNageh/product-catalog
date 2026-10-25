@@ -1,0 +1,14 @@
+{{- /*
+Renders nothing: it stops an install with a clear message when an in-chart dependency is
+switched off without saying where the external one is (ADR-0018). Without these checks
+the pods would start and fail to connect, which is slower to diagnose.
+*/ -}}
+{{- if and (not .Values.postgres.enabled) (not .Values.catalogApi.database.existingSecret) }}
+{{- fail "postgres.enabled is false: set catalogApi.database.existingSecret (a Secret with a DATABASE_URL key)" }}
+{{- end }}
+{{- if and (not .Values.redis.enabled) (not .Values.catalogApi.redisUrl) }}
+{{- fail "redis.enabled is false: set catalogApi.redisUrl" }}
+{{- end }}
+{{- if and (not .Values.opensearch.enabled) (not .Values.searchService.opensearchUrl) }}
+{{- fail "opensearch.enabled is false: set searchService.opensearchUrl" }}
+{{- end }}

@@ -1,3 +1,4 @@
+{{- if .Values.postgres.enabled }}
 {{- $labels := dict "root" $ "name" "postgres" "component" "database" }}
 apiVersion: v1
 kind: Service
@@ -16,3 +17,4 @@ spec:
     name: postgres
     port: 5432
     targetPort: postgres
+{{- end }}

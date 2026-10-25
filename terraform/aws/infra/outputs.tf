@@ -3,6 +3,11 @@ output "cluster_name" {
   value       = module.eks.cluster_name
 }
 
+output "vpc_id" {
+  description = "The VPC, for the AWS Load Balancer Controller (terraform/aws/app finds it by tag)."
+  value       = module.vpc.vpc_id
+}
+
 output "kubeconfig_command" {
   description = "Adds this cluster to your kubeconfig as a new context (after an apply)."
   value       = "aws eks update-kubeconfig --name ${module.eks.cluster_name} --region ${var.region} --profile ${var.aws_profile} --alias ${local.name}-aws"

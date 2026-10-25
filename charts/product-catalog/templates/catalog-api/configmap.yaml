@@ -9,5 +9,5 @@ metadata:
   labels:
     {{- include "product-catalog.labels" $labels | nindent 4 }}
 data:
-  REDIS_URL: "redis://catalog-api-redis:6379/0"
+  REDIS_URL: {{ .Values.catalogApi.redisUrl | default "redis://catalog-api-redis:6379/0" | quote }}
   SEARCH_SERVICE_URL: "http://search-service:8080"

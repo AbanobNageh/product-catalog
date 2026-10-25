@@ -1,6 +1,6 @@
 output "namespace" {
   description = "Namespace the app runs in."
-  value       = kubernetes_namespace_v1.this.metadata[0].name
+  value       = helm_release.product_catalog.namespace
 }
 
 output "release_status" {

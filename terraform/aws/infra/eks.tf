@@ -70,7 +70,8 @@ module "eks" {
       before_compute = true
     }
     eks-pod-identity-agent = {
-      # Lets pods assume IAM roles (like ECS task roles), if we need it later.
+      # Lets pods assume IAM roles (like ECS task roles): the AWS Load Balancer
+      # Controller gets its role this way (lb-controller.tf).
       before_compute = true
     }
     # Cluster DNS (Service names -> IPs), as in kind.

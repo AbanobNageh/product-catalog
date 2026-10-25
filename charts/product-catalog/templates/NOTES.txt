@@ -9,7 +9,7 @@ Check:
   kubectl logs job/catalog-api-seed -n {{ .Release.Namespace }}
 {{- end }}
 {{- if .Values.catalogApi.route.enabled }}
-  curl.exe -s http://{{ .Values.catalogApi.route.hostname }}/healthz
+  curl.exe -s http://{{ .Values.catalogApi.route.hostname | default "<load balancer DNS name>" }}/healthz
 {{- end }}
 
 History and rollback:

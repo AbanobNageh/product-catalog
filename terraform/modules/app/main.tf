@@ -6,9 +6,18 @@
 # deletes it on destroy, along with what the chart leaves behind (the hook
 # Jobs and the StatefulSets' PersistentVolumeClaims).
 resource "kubernetes_namespace_v1" "this" {
+  count = var.create_namespace ? 1 : 0
+
   metadata {
     name = var.namespace
   }
+}
+
+# `count` above changed the address to kubernetes_namespace_v1.this[0]; this
+# tells dev and staging it's the same namespace, not a new one.
+moved {
+  from = kubernetes_namespace_v1.this
+  to   = kubernetes_namespace_v1.this[0]
 }
 
 resource "helm_release" "product_catalog" {
@@ -17,9 +26,10 @@ resource "helm_release" "product_catalog" {
   # subchart must be in charts/product-catalog/charts/ (after a fresh clone:
   # `helm dependency build charts/product-catalog`).
   chart = "${path.module}/../../../charts/product-catalog"
-  # A reference to the namespace resource, not the variable: the release
-  # waits until the namespace exists.
-  namespace = kubernetes_namespace_v1.this.metadata[0].name
+  # A reference to the namespace resource when this module creates it, so the
+  # release waits until it exists; otherwise just the name. one() returns the
+  # single element of a 0-or-1 list, or null when it's empty.
+  namespace = var.create_namespace ? one(kubernetes_namespace_v1.this[*].metadata[0].name) : var.namespace
 
   # A for expression: read each file into a string, keeping the order.
   values = [for f in var.values_files : file(f)]
@@ -28,7 +38,8 @@ resource "helm_release" "product_catalog" {
   # not repeated `set { }` blocks as in v2. Each entry is one --set flag.
   # The env root passes the same versions to module.cluster's images, so
   # the release can't ask for an image that wasn't loaded.
-  set = [
+  # concat joins lists: the image tags, then var.extra_set (empty on kind).
+  set = concat([
     {
       name  = "catalogApi.image.tag"
       value = var.catalog_api_version
@@ -37,7 +48,7 @@ resource "helm_release" "product_catalog" {
       name  = "searchService.image.tag"
       value = var.search_service_version
     },
-  ]
+  ], var.extra_set)
 
   # The CLI's `--wait --timeout`. wait (on by default) is required: the
   # post-install hooks (migrate, then seed) must run after every pod is ready
@@ -46,6 +57,8 @@ resource "helm_release" "product_catalog" {
   timeout = var.timeout
 
   depends_on = [
-    kubernetes_namespace_v1.this, # also implied: `namespace` above references it
+    # Also implied by `namespace` above when the module creates it. With
+    # count = 0 this depends on nothing.
+    kubernetes_namespace_v1.this,
   ]
 }

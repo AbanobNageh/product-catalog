@@ -92,9 +92,12 @@ AWS runs these regional services in its own networks; you reach them through AWS
    search-service pod ── 443 ──► OpenSearch      ┘   EKS node security group"
    anything else ─────────────X  (no matching rule = dropped)
 
-④ Users reach the app (the optional paid part; not in infra/ yet)
-   browser ──► load balancer (public subnets) ──► Traefik pod ──► catalog-api pod
+④ You reach the app (deployed by terraform/aws/app, ADR-0018)
+   browser ──► Network Load Balancer (public subnets) ──► Traefik pod ──► catalog-api pod
+               (accepts only admin_cidrs: your IP)        (straight to the pod's VPC IP)
 ```
+
+The load balancer in ④ isn't created by Terraform. The **AWS Load Balancer Controller**, a pod in `kube-system`, sees Traefik's Service of type `LoadBalancer` and creates a Network Load Balancer for it, calling the AWS API with an IAM role it gets through **EKS Pod Identity** (the role and its association are in `infra/lb-controller.tf`). Deleting the Service deletes the load balancer, which is why the teardown deletes Traefik's Service first, while the controller still runs.
 
 **Security groups** are the firewall in ③: each is attached to one resource and lists what may come in. They are **stateful**: a reply to an allowed request always gets out. The rules name the **node security group** instead of IP addresses. Pods use their node's group, so "from the node security group" means "from our app, wherever its pods run". That keeps working as nodes are replaced and IPs change.
 

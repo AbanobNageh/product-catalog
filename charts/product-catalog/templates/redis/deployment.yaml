@@ -1,3 +1,4 @@
+{{- if .Values.redis.enabled }}
 {{- $labels := dict "root" $ "name" "redis" "component" "cache" }}
 {{- with .Values.redis }}
 apiVersion: apps/v1
@@ -33,4 +34,5 @@ spec:
             command: ["redis-cli", "ping"]
           periodSeconds: 5
           timeoutSeconds: 3
+{{- end }}
 {{- end }}

@@ -1,0 +1,51 @@
+# aws: EKS in terraform/aws/infra, deployed by terraform/aws/app (T5, ADR-0018). Layered on
+# top of values.yaml; staging-like (HPA 2-5, PDBs, search-service x2), with AWS's managed
+# Postgres, Valkey and OpenSearch instead of the in-chart ones.
+#
+# Two values come from the app root, because they only exist after `infra` is applied:
+#   catalogApi.redisUrl          rediss://<Valkey primary endpoint>:6379
+#   searchService.opensearchUrl  https://<OpenSearch endpoint>
+# Render it without a cluster by passing placeholders for them:
+#   helm template product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-aws.yaml --set catalogApi.redisUrl=rediss://valkey:6379 --set searchService.opensearchUrl=https://opensearch
+
+catalogApi:
+  # From ECR (terraform/aws/infra/ecr.tf) instead of `kind load`. Tags are immutable there.
+  image:
+    repository: 766345100621.dkr.ecr.us-east-1.amazonaws.com/catalog-api
+  migrateImage:
+    repository: 766345100621.dkr.ecr.us-east-1.amazonaws.com/catalog-api-migrate
+  # As staging: more headroom than values.yaml's 256Mi.
+  resources:
+    requests:
+      memory: 384Mi
+    limits:
+      memory: 384Mi
+  seed:
+    enabled: true
+  # RDS: DATABASE_URL (with the URL-encoded password and ?sslmode=require) is in this
+  # Secret, created by the session runbook from Secrets Manager (AGENTS.md).
+  database:
+    existingSecret: catalog-api-database
+  # RDS certificates are signed by Amazon's RDS CA. The app root puts AWS's public bundle
+  # in this ConfigMap.
+  extraCaCerts:
+    configMap: rds-ca-bundle
+    key: global-bundle.pem
+  route:
+    # Any host: the load balancer's DNS name. Only admin_cidrs can reach it (ADR-0018).
+    hostname: ""
+
+searchService:
+  image:
+    repository: 766345100621.dkr.ecr.us-east-1.amazonaws.com/search-service
+  # Sets action.auto_create_index on Amazon OpenSearch Service before search-service starts.
+  opensearchSettings:
+    enabled: true
+
+# Managed services instead (terraform/aws/infra).
+postgres:
+  enabled: false
+redis:
+  enabled: false
+opensearch:
+  enabled: false

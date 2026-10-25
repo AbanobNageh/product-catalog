@@ -24,6 +24,9 @@ spec:
         # pods. The ConfigMap's hash in the pod template makes any change roll the pods.
         checksum/config: {{ include (print $.Template.BasePath "/catalog-api/configmap.yaml") $ | sha256sum }}
     spec:
+      {{- with include "product-catalog.extraCaVolumes" $ }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
       - name: catalog-api
         image: "{{ .image.repository }}:{{ .image.tag }}"
@@ -33,6 +36,9 @@ spec:
             name: catalog-api
         env:
         {{- include "product-catalog.databaseEnv" $ | nindent 8 }}
+        {{- with include "product-catalog.extraCaVolumeMounts" $ }}
+        {{- . | nindent 8 }}
+        {{- end }}
         ports:
         - containerPort: 3000
           name: http

@@ -48,7 +48,16 @@ resource "helm_release" "traefik" {
 
   # path.module is this module's folder (terraform/modules/platform), so the
   # path works whichever env folder calls the module. ../../../ is the repo root.
-  values = [file("${path.module}/../../../k8s/traefik/values.yaml")]
+  # On AWS, extra files follow (later files win), then the load balancer's
+  # source ranges as one more values document (yamlencode turns the HCL object
+  # into YAML). On kind both are empty, so the list is exactly the one file.
+  values = concat(
+    [file("${path.module}/../../../k8s/traefik/values.yaml")],
+    [for f in var.traefik_extra_values_files : file(f)],
+    length(var.traefik_load_balancer_source_ranges) > 0 ? [yamlencode({
+      service = { spec = { loadBalancerSourceRanges = var.traefik_load_balancer_source_ranges } }
+    })] : [],
+  )
 
   depends_on = [
     # Required: nothing in this resource references the CRDs, so Terraform
@@ -56,13 +65,49 @@ resource "helm_release" "traefik" {
     # line both would start in parallel and the install could fail with
     # "no matches for kind Gateway".
     terraform_data.gateway_api_crds,
+    # On AWS: the controller must be running (with its webhook) before Traefik's
+    # Service appears, or no load balancer gets created. In reverse, destroy
+    # removes Traefik before the controller. (No effect when count is 0.)
+    helm_release.aws_load_balancer_controller,
   ]
+}
+
+# 2a. The AWS Load Balancer Controller (EKS only): watches Services of type
+# LoadBalancer (and Ingresses) and creates the matching AWS load balancers.
+# It calls the AWS API with an IAM role that EKS Pod Identity hands to its
+# pods; the role and the association are in terraform/aws/infra.
+#
+# count = 0 or 1 is Terraform's "optional resource" idiom: the resource exists
+# only when the input is set, and its address gets an index ([0]).
+resource "helm_release" "aws_load_balancer_controller" {
+  count = var.aws_load_balancer_controller == null ? 0 : 1
+
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  version    = var.aws_load_balancer_controller.chart_version
+  namespace  = "kube-system"
+
+  values = [yamlencode({
+    clusterName = var.aws_load_balancer_controller.cluster_name
+    # Given explicitly, so the controller doesn't have to look them up from
+    # the EC2 instance metadata service.
+    region = var.aws_load_balancer_controller.region
+    vpcId  = var.aws_load_balancer_controller.vpc_id
+    serviceAccount = {
+      # The name the Pod Identity association expects.
+      name = "aws-load-balancer-controller"
+    }
+  })]
 }
 
 # 3. metrics-server, so `kubectl top` works and the HPA can scale catalog-api.
 # Cluster-wide plumbing, so it goes in kube-system. It needs nothing but the
 # cluster, so it installs in parallel with the CRDs and Traefik.
 resource "helm_release" "metrics_server" {
+  # On EKS the metrics-server add-on already runs it (terraform/aws/infra).
+  count = var.install_metrics_server ? 1 : 0
+
   name       = "metrics-server"
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
@@ -70,4 +115,13 @@ resource "helm_release" "metrics_server" {
   namespace  = "kube-system"
 
   values = [file("${path.module}/../../../k8s/metrics-server/values.yaml")]
+}
+
+# Adding `count` above changed this resource's address from
+# helm_release.metrics_server to helm_release.metrics_server[0]. Without this
+# block Terraform would read that as "delete the old one, create a new one" in
+# dev and staging. `moved` tells it the existing release just got a new address.
+moved {
+  from = helm_release.metrics_server
+  to   = helm_release.metrics_server[0]
 }

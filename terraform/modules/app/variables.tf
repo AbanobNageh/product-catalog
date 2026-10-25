@@ -4,6 +4,12 @@ variable "namespace" {
   default     = "catalog"
 }
 
+variable "create_namespace" {
+  description = "Create the namespace here. false when it must exist before this module runs (terraform/aws/app: the runbook creates it, with the database Secret, before the apply)."
+  type        = bool
+  default     = true
+}
+
 variable "values_files" {
   description = "Chart values files layered on top of the chart's values.yaml, in order (later files win), for example the environment's values-<env>.yaml."
   type        = list(string)
@@ -34,6 +40,15 @@ variable "search_service_version" {
     condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.search_service_version))
     error_message = "search_service_version must be a version like 0.1.0, never latest."
   }
+}
+
+variable "extra_set" {
+  description = "More --set values, after the image tags: values only known at apply time, such as the AWS endpoints (terraform/aws/app). Empty on kind."
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  default = []
 }
 
 variable "timeout" {
