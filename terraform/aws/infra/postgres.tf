@@ -51,7 +51,9 @@ resource "aws_db_instance" "postgres" {
   storage_type      = "gp3"
   storage_encrypted = true
 
-  db_name  = "catalog"
+  # Not "catalog" as locally: RDS for PostgreSQL rejects it ("a reserved word for this
+  # engine"). The session runbook reads this name from the postgres_database output.
+  db_name  = "product_catalog"
   username = "catalog"
   # RDS generates the password and keeps it in Secrets Manager (ADR-0017):
   # it never appears in Terraform state. Read it with the secret ARN from

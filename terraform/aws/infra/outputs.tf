@@ -23,6 +23,11 @@ output "postgres_endpoint" {
   value       = aws_db_instance.postgres.endpoint
 }
 
+output "postgres_database" {
+  description = "The database name for DATABASE_URL."
+  value       = aws_db_instance.postgres.db_name
+}
+
 output "postgres_engine_version" {
   description = "The exact PostgreSQL version RDS chose."
   value       = aws_db_instance.postgres.engine_version_actual
