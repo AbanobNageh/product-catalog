@@ -50,7 +50,7 @@ catalogApi:
         memory: 512Mi
       limits:
         memory: 512Mi
-  # Gateway API HTTPRoute. The Gateway itself is platform-side (k8s/traefik/gateway.yaml).
+  # Gateway API HTTPRoute. The Gateway itself is platform-side (k8s/traefik/values.yaml).
   route:
     enabled: true
     # Required when enabled, for example catalog.localhost (values-dev.yaml).

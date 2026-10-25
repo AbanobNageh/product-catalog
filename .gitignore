@@ -27,6 +27,8 @@ crash.log
 # Kubernetes local
 kubeconfig*
 *.kubeconfig
+# The kind provider's kubeconfig copy (terraform/local/<cluster>-config); it holds the admin key
+terraform/**/*-config
 
 # Helm: downloaded subcharts (Chart.lock IS committed; `helm dependency build` restores them)
 charts/*/charts/
