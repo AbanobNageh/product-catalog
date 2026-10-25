@@ -11,6 +11,7 @@ Plan written 2026-10-21. The same day it was split into the files below ([ADR-00
 | 2 | Learn Kubernetes by deploying it to a local kind cluster | The AI writes the files and explains them; I do the rest | 1–2 weeks | [docs/plan/kubernetes.md](docs/plan/kubernetes.md) |
 | 3 | Learn Terraform by managing that cluster and app, then AWS | The AI writes the files and explains them; I do the rest | about 1 week | [docs/plan/terraform.md](docs/plan/terraform.md) |
 | 4 | Optional extras, only after Parts 1–3 are done | (decided then) | — | [docs/plan/extras.md](docs/plan/extras.md) |
+| 5 | Make the API safe for an AI agent: stock filter and sort, `If-Match` on writes, API keys with scopes (added 2026-10-25, after publishing) | The AI builds it, I review it | 2–4 days | [docs/plan/agent-ready-api.md](docs/plan/agent-ready-api.md) |
 
 Instructions for the AI assistant: [AGENTS.md](AGENTS.md). How the AI context system works: [docs/ai-workflow.md](docs/ai-workflow.md).
 
@@ -22,4 +23,5 @@ Instructions for the AI assistant: [AGENTS.md](AGENTS.md). How the AI context sy
   - the trade-offs (ADRs)
   - a "what I'd change in production" section
   - a short, honest note on how AI was used: the AI built the app code with my review. In K0–K3 I wrote the Kubernetes manifests myself, with the AI reviewing. After that, for Kubernetes and Terraform, the AI wrote the files, explained them and answered my questions, while I did the rest: the design decisions, and running and checking everything on the cluster
+- **After publishing (Part 5):** changes go to the public repo as normal commits, and the README is updated at the 5.4 release. Part 5 prepares the API for a separate agent repo (an MCP server and a tool-calling agent), which builds this repo's images from the `v1.1.0` tag.
 - **On the CV**, list it as a **personal project**. Don't present it as production Kubernetes or Terraform experience. Mention the AWS deployment only if it really happened.
