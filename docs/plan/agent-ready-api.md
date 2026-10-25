@@ -99,6 +99,9 @@ Checked on 2026-10-25: the read tools work with the API as it is, but write tool
   - **AWS:**
     - `terraform/aws/app` gets the same Secret. Only `validate`, `tflint` and `trivy` can run: its `plan` needs the cluster.
     - Add a line to the T5 session runbook in AGENTS.md (user-owned, so propose the change).
+- **Integer query parameters** (from the 5.1 review; `minPrice`, `maxPrice`, `maxStock`, `page`, `size`):
+  - **One error message per bad value.** Today `toOptionalInt` leaves `-1` as a string, so `maxStock=-1` also gets "must not be greater than 2147483647". Convert `/^-?\d+$/` to a number, so `-1` fails only `@Min`.
+  - **OpenAPI says what is validated:** `type: 'integer'` with `minimum` and `maximum`, so a tool schema generated from `/docs-json` rejects `1.5` and `-1` before the request is sent. Today it shows `number` with no bounds.
 - **Tests:** unit tests for the guard and config, e2e tests for each scope on each endpoint group, and a test that every route has either a scope or `@Public()`.
 - **Done when:**
   - On Compose:
@@ -110,6 +113,7 @@ Checked on 2026-10-25: the read tools work with the API as it is, but write tool
   - `npm run seed` works with the admin key and fails clearly without it.
   - dev and staging rebuilt with `terraform apply`: the seed hook succeeds, and `curl.exe` with the key from `terraform output` works.
   - k6 runs against staging.
+  - `maxStock=-1` returns a single message, and `/docs-json` shows the integer query parameters as `integer` with bounds.
   - ADR-0020 is accepted.
 
 ## 5.4 Release
