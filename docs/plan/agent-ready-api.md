@@ -102,6 +102,10 @@ Checked on 2026-10-25: the read tools work with the API as it is, but write tool
 - **Integer query parameters** (from the 5.1 review; `minPrice`, `maxPrice`, `maxStock`, `page`, `size`):
   - **One error message per bad value.** Today `toOptionalInt` leaves `-1` as a string, so `maxStock=-1` also gets "must not be greater than 2147483647". Convert `/^-?\d+$/` to a number, so `-1` fails only `@Min`.
   - **OpenAPI says what is validated:** `type: 'integer'` with `minimum` and `maximum`, so a tool schema generated from `/docs-json` rejects `1.5` and `-1` before the request is sent. Today it shows `number` with no bounds.
+- **Versions** (moved here from 5.4 on 2026-10-25: `kind_load` only loads an image whose tag changed, so the new code needs a new tag to reach the clusters):
+  - catalog-api `0.2.0` and search-service `0.2.0`, in `package.json`, the image tags, Terraform's `*_version` variables (dev, staging and `terraform/aws/app`), and the T5 runbook's image tags (AGENTS.md, user-owned, so propose the change)
+  - the next minor version of the chart
+  - **check the migration hook on an upgrade:** build dev at the existing `0.1.1` images first, then `terraform apply` the upgrade to `0.2.0`. The migration hook must apply the `version` migration before the rollout. Staging goes straight to `0.2.0`.
 - **Tests:** unit tests for the guard and config, e2e tests for each scope on each endpoint group, and a test that every route has either a scope or `@Public()`.
 - **Done when:**
   - On Compose:
@@ -112,15 +116,13 @@ Checked on 2026-10-25: the read tools work with the API as it is, but write tool
   - `/healthz` and `/docs` work without a key.
   - `npm run seed` works with the admin key and fails clearly without it.
   - dev and staging rebuilt with `terraform apply`: the seed hook succeeds, and `curl.exe` with the key from `terraform output` works.
+  - dev upgraded from `0.1.1` to `0.2.0` with `terraform apply`: the migration hook applied the `version` migration before the rollout, and `/healthz` reports `0.2.0`.
   - k6 runs against staging.
   - `maxStock=-1` returns a single message, and `/docs-json` shows the integer query parameters as `integer` with bounds.
   - ADR-0020 is accepted.
 
 ## 5.4 Release
-- **Versions:**
-  - catalog-api `0.2.0` and search-service `0.2.0`, in `package.json`, the image tags and Terraform's `*_version` variables
-  - the next minor version of the chart
-  - **check the migration hook on an upgrade:** `terraform apply` on a running dev environment applies the `version` migration before the rollout
+- **Versions:** moved to 5.3 (2026-10-25), including the migration-hook check on an upgrade.
 - **Docs:**
   - update the [app.md](app.md) endpoint tables (user-owned, so propose the changes): the new parameters, the headers, the scopes, and "No auth" removed
   - **README:**
