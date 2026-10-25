@@ -73,16 +73,21 @@ func TestBuild(t *testing.T) {
 			`[{"multi_match":{"query":"phone OR (","fields":["name^3","description"],"fuzziness":"AUTO"}}]`},
 		{"no filters", func(*Params) {}, []string{"query", "bool", "filter"}, `[]`},
 		{"all filters", func(p *Params) {
-			p.Category, p.Brand, p.MinPrice, p.MaxPrice, p.InStock = "electronics", "Acme", new(10000), new(50000), new(true)
+			p.Category, p.Brand, p.MinPrice, p.MaxPrice, p.InStock, p.MaxStock = "electronics", "Acme", new(10000), new(50000), new(true), new(5)
 		}, []string{"query", "bool", "filter"},
-			`[{"term":{"category":"electronics"}},{"term":{"brand":"Acme"}},{"range":{"price_cents":{"gte":10000,"lte":50000}}},{"term":{"in_stock":true}}]`},
+			`[{"term":{"category":"electronics"}},{"term":{"brand":"Acme"}},{"range":{"price_cents":{"gte":10000,"lte":50000}}},{"term":{"in_stock":true}},{"range":{"stock":{"lte":5}}}]`},
 		{"only minPrice", func(p *Params) { p.MinPrice = new(10000) }, []string{"query", "bool", "filter"},
 			`[{"range":{"price_cents":{"gte":10000}}}]`},
 		{"inStock=false filters too", func(p *Params) { p.InStock = new(false) }, []string{"query", "bool", "filter"},
 			`[{"term":{"in_stock":false}}]`},
+		{"maxStock filter", func(p *Params) { p.MaxStock = new(5) }, []string{"query", "bool", "filter"},
+			`[{"range":{"stock":{"lte":5}}}]`},
+		{"maxStock zero still filters", func(p *Params) { p.MaxStock = new(0) }, []string{"query", "bool", "filter"},
+			`[{"range":{"stock":{"lte":0}}}]`},
 		{"price_asc", func(p *Params) { p.Q, p.Sort = "phone", PriceAsc }, []string{"sort"}, `[{"price_cents":"asc"},{"id":"asc"}]`},
 		{"price_desc", func(p *Params) { p.Sort = PriceDesc }, []string{"sort"}, `[{"price_cents":"desc"},{"id":"asc"}]`},
 		{"newest", func(p *Params) { p.Q, p.Sort = "phone", Newest }, []string{"sort"}, `[{"created_at":"desc"},{"id":"asc"}]`},
+		{"stock_asc beats relevance", func(p *Params) { p.Q, p.Sort = "phone", StockAsc }, []string{"sort"}, `[{"stock":"asc"},{"id":"asc"}]`},
 		{"paging from", func(p *Params) { p.Page, p.Size = 3, 20 }, []string{"from"}, `40`},
 		{"paging size", func(p *Params) { p.Page, p.Size = 3, 20 }, []string{"size"}, `20`},
 		{"exact totals", func(*Params) {}, []string{"track_total_hits"}, `true`},

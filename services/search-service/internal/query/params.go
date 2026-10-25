@@ -22,6 +22,7 @@ const (
 	PriceAsc  Sort = "price_asc"
 	PriceDesc Sort = "price_desc"
 	Newest    Sort = "newest"
+	StockAsc  Sort = "stock_asc"
 )
 
 const (
@@ -44,6 +45,7 @@ type Params struct {
 	MinPrice *int // cents, inclusive
 	MaxPrice *int // cents, inclusive
 	InStock  *bool
+	MaxStock *int // inclusive
 	Sort     Sort
 	Page     int
 	Size     int
@@ -93,13 +95,14 @@ func ParseParams(v url.Values) (Params, error) {
 	default:
 		errs = append(errs, fmt.Errorf("inStock must be true or false, got %q", s))
 	}
+	p.MaxStock = intParam("maxStock", 0, math.MaxInt32)
 
 	switch s := Sort(strings.TrimSpace(v.Get("sort"))); s {
 	case "":
-	case Relevance, PriceAsc, PriceDesc, Newest:
+	case Relevance, PriceAsc, PriceDesc, Newest, StockAsc:
 		p.Sort = s
 	default:
-		errs = append(errs, fmt.Errorf("sort must be relevance, price_asc, price_desc or newest, got %q", s))
+		errs = append(errs, fmt.Errorf("sort must be relevance, price_asc, price_desc, newest or stock_asc, got %q", s))
 	}
 
 	if n := intParam("page", 1, math.MaxInt32); n != nil {

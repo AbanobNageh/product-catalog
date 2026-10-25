@@ -55,6 +55,9 @@ func Build(p Params) map[string]any {
 	if p.InStock != nil {
 		filter = append(filter, term("in_stock", *p.InStock))
 	}
+	if p.MaxStock != nil {
+		filter = append(filter, map[string]any{"range": map[string]any{"stock": map[string]any{"lte": *p.MaxStock}}})
+	}
 
 	return map[string]any{
 		"from":             (p.Page - 1) * p.Size,
@@ -86,6 +89,7 @@ func sortFor(p Params) []any {
 		PriceAsc:  {"price_cents": "asc"},
 		PriceDesc: {"price_cents": "desc"},
 		Newest:    {"created_at": "desc"},
+		StockAsc:  {"stock": "asc"},
 	}[s]
 	return []any{first, map[string]any{"id": "asc"}}
 }

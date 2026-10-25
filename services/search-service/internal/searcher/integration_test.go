@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"slices"
 	"testing"
 
 	"github.com/opensearch-project/opensearch-go/v5/opensearchapi"
@@ -137,6 +138,31 @@ func TestSearch(t *testing.T) {
 		}
 		if r.Total != 3 {
 			t.Fatalf("total %d: %v", r.Total, ids(r))
+		}
+	})
+
+	t.Run("maxStock and stock_asc list low stock first, facets count only them", func(t *testing.T) {
+		r := search(t, s, "maxStock=2&sort=stock_asc")
+		if got := ids(r); r.Total != 3 || !slices.Equal(got, []string{"p2", "p3", "p4"}) { // stock 0, 1, 2
+			t.Fatalf("total %d: %v", r.Total, got)
+		}
+		if c := counts(r.Facets.Category); len(c) != 1 || c["electronics"] != 3 {
+			t.Fatalf("category facet %v", r.Facets.Category)
+		}
+		if c := counts(r.Facets.Brand); len(c) != 2 || c["Acme"] != 2 || c["Zed"] != 1 {
+			t.Fatalf("brand facet %v", r.Facets.Brand)
+		}
+	})
+
+	t.Run("maxStock=0 means out of stock only", func(t *testing.T) {
+		if got := ids(search(t, s, "maxStock=0")); !slices.Equal(got, []string{"p2"}) {
+			t.Fatalf("got %v", got)
+		}
+	})
+
+	t.Run("maxStock with inStock=true keeps both filters", func(t *testing.T) {
+		if got := ids(search(t, s, "inStock=true&maxStock=2&sort=stock_asc")); !slices.Equal(got, []string{"p3", "p4"}) {
+			t.Fatalf("got %v", got)
 		}
 	})
 

@@ -27,7 +27,7 @@ func TestParseParamsDefaults(t *testing.T) {
 }
 
 func TestParseParamsValues(t *testing.T) {
-	got, err := parse(t, "q=++phone+&category=electronics&brand=Acme&minPrice=10000&maxPrice=50000&inStock=false&sort=price_desc&page=3&size=100")
+	got, err := parse(t, "q=++phone+&category=electronics&brand=Acme&minPrice=10000&maxPrice=50000&inStock=false&maxStock=5&sort=stock_asc&page=3&size=100")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,18 +40,32 @@ func TestParseParamsValues(t *testing.T) {
 	if got.InStock == nil || *got.InStock {
 		t.Fatalf("inStock %v", got.InStock)
 	}
-	if got.Sort != PriceDesc || got.Page != 3 || got.Size != 100 {
+	if got.MaxStock == nil || *got.MaxStock != 5 {
+		t.Fatalf("maxStock %v", got.MaxStock)
+	}
+	if got.Sort != StockAsc || got.Page != 3 || got.Size != 100 {
 		t.Fatalf("paging %+v", got)
 	}
 }
 
 func TestParseParamsBlankMeansUnset(t *testing.T) {
-	got, err := parse(t, "q=&category=&brand=&minPrice=&maxPrice=&inStock=&sort=&page=&size=")
+	got, err := parse(t, "q=&category=&brand=&minPrice=&maxPrice=&inStock=&maxStock=&sort=&page=&size=")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Category != "" || got.MinPrice != nil || got.InStock != nil || got.Sort != Relevance || got.Page != 1 || got.Size != 20 {
+	if got.Category != "" || got.MinPrice != nil || got.InStock != nil || got.MaxStock != nil || got.Sort != Relevance || got.Page != 1 || got.Size != 20 {
 		t.Fatalf("got %+v", got)
+	}
+	if got, err := parse(t, "maxStock=%20"); err != nil || got.MaxStock != nil {
+		t.Fatalf("maxStock=%%20: %v %v", got.MaxStock, err)
+	}
+}
+
+// maxStock=0 is a real filter (out of stock only), not "no filter".
+func TestParseParamsAcceptsMaxStockZero(t *testing.T) {
+	got, err := parse(t, "maxStock=0")
+	if err != nil || got.MaxStock == nil || *got.MaxStock != 0 {
+		t.Fatalf("maxStock=0: %v %v", got.MaxStock, err)
 	}
 }
 
@@ -83,7 +97,12 @@ func TestParseParamsErrors(t *testing.T) {
 		{"maxPrice=10.5", []string{"maxPrice"}},
 		{"maxPrice=2147483648", []string{"maxPrice"}},
 		{"inStock=yes", []string{"inStock"}},
-		{"sort=cheap", []string{"sort"}},
+		{"maxStock=-1", []string{"maxStock"}},
+		{"maxStock=abc", []string{"maxStock"}},
+		{"maxStock=2147483648", []string{"maxStock"}},
+		{"maxStock=1.5", []string{"maxStock"}},
+		// The message lists the allowed sorts, so it must name the new one.
+		{"sort=cheap", []string{"sort", "stock_asc"}},
 		{"page=0", []string{"page"}},
 		{"size=0", []string{"size"}},
 		{"size=101", []string{"size"}},
