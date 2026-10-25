@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+aws_account_id = "123456789012"
+# Your public IP as a /32 (one address): curl.exe -s https://checkip.amazonaws.com
+admin_cidrs = ["203.0.113.7/32"]
