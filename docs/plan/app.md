@@ -22,7 +22,8 @@ The AI builds it; I review it. Estimated time: 2–4 days.
 
 - **catalog-api** is the only public entry point. It owns product data in Postgres, caches reads in Redis, and keeps the search index updated by calling search-service whenever a product changes.
 - **search-service** is internal only. It owns the OpenSearch index and serves search queries with filters, facets and sorting.
-- **No auth, no frontend.** Swagger UI on catalog-api is the UI.
+- **No frontend.** Swagger UI on catalog-api is the UI.
+- **API keys with three scopes** (Part 5, [ADR-0020](../adr/0020-api-keys-with-scopes.md)): every catalog-api endpoint except `/healthz`, `/readyz` and `/docs` needs `Authorization: Bearer <key>`. search-service has no auth: it has no host port or public route, and only catalog-api calls it.
 
 **Known trade-off** ([ADR-0001](../adr/0001-two-services-synchronous-indexing.md)): indexing is a synchronous HTTP call after the Postgres write. If search-service is down, the write still succeeds, the error is logged, and the index goes stale until `POST /admin/reindex` is run. This is the honest simple version, chosen so the new learning stays on Kubernetes and Terraform. Part 4 has the event-driven fix (outbox + queue). To keep that switch cheap, catalog-api makes every index call through one `SearchIndexer` interface, and search-service keeps its indexing logic separate from its HTTP handlers (see the ADR).
 
@@ -41,6 +42,7 @@ The AI builds it; I review it. Estimated time: 2–4 days.
 | price_cents | integer | store money as integers |
 | currency | text | default `EGP` |
 | stock | integer | ≥ 0 |
+| version | integer | starts at 1, +1 on every update; optimistic concurrency (Part 5, [ADR-0019](../adr/0019-optimistic-concurrency-with-if-match.md)) |
 | created_at, updated_at | timestamptz | |
 
 Migrations live in the repo and run as a **separate command** (for example `npm run migrate`), not automatically when the app starts. In Part 2 they'll run as a Kubernetes Job.
@@ -49,22 +51,26 @@ Migrations live in the repo and run as a **separate command** (for example `npm 
 
 ORM: **Prisma** ([ADR-0003](../adr/0003-prisma-as-orm.md)). `prisma migrate deploy` makes a clean Kubernetes Job.
 
-Endpoints:
+Endpoints (Part 5, [agent-ready-api.md](agent-ready-api.md), added the scopes, `maxStock`, `stock_asc`, `version` and `If-Match`):
 
-| method | path | what it does |
-|---|---|---|
-| POST | /products | create, then index (sync call to search-service) |
-| GET | /products/:id | Redis cache-aside, TTL 5 minutes |
-| GET | /products?page&limit | list from Postgres, no cache |
-| PATCH | /products/:id | update, invalidate the cache, re-index |
-| DELETE | /products/:id | delete, invalidate the cache, remove from the index |
-| GET | /products/search?q&category&brand&minPrice&maxPrice&inStock&sort&page&size | proxies to search-service; caches results in Redis for 60s, keyed by the normalised query; any product write invalidates cached search results |
-| POST | /admin/reindex | builds a fresh index from Postgres and swaps it in, while writes keep working ([ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md)); 409 if one is already running |
-| GET | /healthz | liveness: the process is up (no dependency checks) |
-| GET | /readyz | readiness: Postgres and Redis reachable |
+| method | path | scope | what it does |
+|---|---|---|---|
+| POST | /products | write | create, then index (sync call to search-service); returns `ETag` |
+| GET | /products/:id | read | Redis cache-aside, TTL 5 minutes; returns `ETag: "<version>"` |
+| GET | /products?page&limit | read | list from Postgres, no cache |
+| PATCH | /products/:id | write | update, invalidate the cache, re-index; optional `If-Match: "<version>"`; returns the new `ETag` |
+| DELETE | /products/:id | admin | delete, invalidate the cache, remove from the index; optional `If-Match` |
+| GET | /products/search?q&category&brand&minPrice&maxPrice&maxStock&inStock&sort&page&size | read | proxies to search-service; caches results in Redis for 60s, keyed by the normalised query; any product write invalidates cached search results |
+| POST | /admin/reindex | admin | builds a fresh index from Postgres and swaps it in, while writes keep working ([ADR-0007](../adr/0007-alias-swap-reindex-with-live-writes.md)); 409 if one is already running |
+| GET | /healthz | none | liveness: the process is up (no dependency checks) |
+| GET | /readyz | none | readiness: Postgres and Redis reachable |
 
-- `sort`: `relevance` (default), `price_asc`, `price_desc` or `newest`.
+- `sort`: `relevance` (default), `price_asc`, `price_desc`, `newest` or `stock_asc` (stock, lowest first). Ties are ordered by `id`.
 - `minPrice` and `maxPrice` are in cents, like `price_cents`.
+- `maxStock`: only products with stock ≤ `maxStock` (`0`: out of stock only).
+- **Integer parameters** (`minPrice`, `maxPrice`, `maxStock`, `page`, `size`, `limit`) must be whole numbers within their bounds. A bad value gets one message: `<name> must be a whole number from <min> to <max>`.
+- **Keys:** the scopes nest: `read` < `write` < `admin`. A missing or unknown key gets 401 with `WWW-Authenticate: Bearer`; a key with too low a scope gets 403, naming the scope that's needed.
+- **`If-Match`:** optional. Only the ETag from `GET /products/:id`, `POST` or `PATCH` works (list and search responses carry Express's weak body hash, which isn't a version). Anything other than one strong ETag gets 400; a stale version gets 412, with `currentVersion` in the body. Search hits don't carry `version` (the index may be stale), so read the product with `GET /products/:id` before writing it.
 - **Validation:** `class-validator` DTOs.
 - **Swagger:** `@nestjs/swagger` at `/docs`.
 - **Seed:** `npm run seed` creates about 10,000 fake products with `@faker-js/faker`, across about 10 categories and 30 brands, then calls reindex.
