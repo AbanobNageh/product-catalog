@@ -6,11 +6,11 @@ provider "docker" {}
 # Data source: read-only. Terraform asks Docker Hub for the digest (content
 # hash) that the tag points at today, on every plan. It never creates anything.
 data "docker_registry_image" "redis" {
-  name = "redis:8-alpine" # same image as docker-compose.yml
+  name = var.redis_image
 }
 
-# Resource: an image that Terraform pulls and owns.
-# Its address is docker_image.redis (type, then local name).
+# Resource: an image that Terraform pulls and owns. One image, shared by
+# every container below. Its address is docker_image.redis.
 resource "docker_image" "redis" {
   name = data.docker_registry_image.redis.name
 
@@ -22,19 +22,34 @@ resource "docker_image" "redis" {
   keep_locally = true
 }
 
-# Resource: the container. Referencing docker_image.redis.image_id makes this
-# resource depend on the image, so Terraform creates the image first and
-# destroys it last. If image_id changes, the container is replaced.
+# One container per entry in var.containers.
+# for_each makes this block create one instance per map key. Inside it,
+# each.key is the key ("cache") and each.value is that entry's object.
+# Instance addresses: docker_container.redis["cache"], ["sessions"], ...
+# Removing a key destroys only that container; with count (indexes 0, 1, 2)
+# removing a middle item would shift, and recreate, the ones after it.
 resource "docker_container" "redis" {
-  name  = "tf-redis" # tf- prefix: easy to tell apart from Compose's containers
+  for_each = var.containers
+
+  name  = local.container_names[each.key]
   image = docker_image.redis.image_id
 
-  # Like Compose's ports: "127.0.0.1:6380:6379". Bound to localhost only;
-  # 6380 avoids a clash with Compose's Redis on 6379.
+  # Overrides the image's default command (CMD). Changing it replaces the
+  # container: Docker can't change a running container's command.
+  command = [
+    "redis-server",
+    "--maxmemory", each.value.maxmemory,
+    "--maxmemory-policy", each.value.maxmemory_policy,
+  ]
+
+  # Docker's restart policy. "no" is the provider's default; it's spelled out
+  # because the drift exercise changes it by hand. It can change in place.
+  restart = "no"
+
   ports {
     internal = 6379
-    external = 6380
-    ip       = "127.0.0.1"
+    external = each.value.port
+    ip       = local.bind_ip
   }
 
   # Same check as docker-compose.yml.

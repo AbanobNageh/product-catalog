@@ -1,6 +1,7 @@
-# T0: one Redis container, managed by Terraform through the Docker provider.
-# Terraform reads every *.tf file in this folder as one configuration;
-# the split into versions.tf and main.tf is only for people.
+# T0–T1: Redis containers managed by Terraform through the Docker provider.
+# Terraform reads every *.tf file in this folder as one configuration; the
+# split into versions.tf, variables.tf, locals.tf, main.tf and outputs.tf is
+# only for people.
 
 # The `terraform` block configures Terraform itself, not any infrastructure.
 terraform {

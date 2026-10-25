@@ -84,8 +84,10 @@ App: the Helm chart `charts/product-catalog` (release `product-catalog` in names
 - Load test (k6: `winget install k6 --source winget`): `k6 run loadtest/catalog-api.js` (50 VUs, 5½ min). Watch with `kubectl get hpa catalog-api -n catalog -w`; it scales back down 5 min after the load ends
 
 Terraform (run each command from the config's folder, or pass `-chdir=<folder>`). After `winget install Hashicorp.Terraform`, open a new terminal so `terraform` is on the PATH. winget lags behind upstream, so ignore the "out of date" notice:
-- `terraform/docker-basics` (T0–T1, Docker provider, no cluster needed): `terraform init` (first run, and after a provider change; it fills `.terraform/` and writes the committed `.terraform.lock.hcl`), `terraform plan`, `terraform apply` (type `yes`), `terraform destroy`. It runs `tf-redis` on `127.0.0.1:6380` (Compose's Redis keeps 6379). Check: `docker exec tf-redis redis-cli ping`
-- State: `terraform state list`, `terraform state show <address>` (for example `docker_container.redis`). `terraform.tfstate` is local and git-ignored
+- `terraform/docker-basics` (T0–T1, Docker provider, no cluster needed): first `Copy-Item terraform.tfvars.example terraform.tfvars` (git-ignored; `containers` has no default). Then `terraform init` (first run, and after a provider change; it fills `.terraform/` and writes the committed `.terraform.lock.hcl`), `terraform plan`, `terraform apply` (type `yes`), `terraform destroy`. It runs `tf-redis-cache`, `-sessions` and `-queue` on `127.0.0.1:6380`–`6382` (one per `containers` entry, via `for_each`) plus `tf-redis-legacy` on 6383 (imported in T1). Compose's Redis keeps 6379. Check: `terraform output`, `docker exec tf-redis-cache redis-cli ping`
+- Drift: `terraform plan -refresh-only` shows what changed outside Terraform without proposing fixes; plain `plan` proposes the fixes and `apply` reverts them
+- PowerShell 5.1 quoting: quote arguments with `=` and a dot (`"-var-file=dev.tfvars"`, `"-out=t1.tfplan"`), or Terraform reports "Too many command line arguments". Escape quotes inside addresses: `'docker_container.redis[\"cache\"]'`
+- State: `terraform state list`, `terraform state show <address>` (for example `docker_container.legacy`, or `'docker_container.redis[\"cache\"]'` for a `for_each` instance). `terraform.tfstate` is local and git-ignored
 - Format / validate: `terraform fmt -check` (`terraform fmt` fixes) / `terraform validate`
 
 ## Who writes what

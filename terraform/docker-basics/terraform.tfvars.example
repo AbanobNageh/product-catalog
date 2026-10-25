@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars (git-ignored), which Terraform loads automatically:
+#   Copy-Item terraform.tfvars.example terraform.tfvars
+# A .tfvars file only assigns values; the variables are declared in variables.tf.
+
+containers = {
+  cache = {
+    port      = 6380
+    maxmemory = "64mb"
+  }
+  sessions = {
+    port             = 6381
+    maxmemory        = "32mb"
+    maxmemory_policy = "volatile-lru" # evict only keys that have a TTL
+  }
+  queue = {
+    port             = 6382
+    maxmemory        = "32mb"
+    maxmemory_policy = "noeviction" # never drop jobs; writes fail when full
+  }
+}
+
+# Optional overrides (the defaults are in variables.tf):
+# redis_image = "redis:8-alpine"
+# name_prefix = "tf-redis"
