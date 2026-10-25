@@ -1,6 +1,6 @@
 # 0015. Terraform modules, and one folder per environment
 
-- **Status:** Proposed (T3)
+- **Status:** Accepted (approved 2026-10-25, after the T5 close; decided in T3)
 - **Date:** 2026-10-25
 
 ## Context

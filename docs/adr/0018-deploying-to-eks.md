@@ -1,6 +1,6 @@
 # 0018. Deploying the app to EKS
 
-- **Status:** Proposed (T5)
+- **Status:** Accepted (approved 2026-10-25, after the T5 close). Not yet exercised on a live cluster: the paid session may supersede parts of it.
 - **Date:** 2026-10-25
 
 ## Context

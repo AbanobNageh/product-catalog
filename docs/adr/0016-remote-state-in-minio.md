@@ -1,6 +1,6 @@
 # 0016. Remote state in MinIO, with S3-native locking
 
-- **Status:** Proposed (T4)
+- **Status:** Accepted (approved 2026-10-25, after the T5 close; decided in T4)
 - **Date:** 2026-10-25
 
 ## Context

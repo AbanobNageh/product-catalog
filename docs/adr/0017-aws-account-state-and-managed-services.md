@@ -1,6 +1,6 @@
 # 0017. AWS: account access, state bucket and managed services
 
-- **Status:** Proposed (T5)
+- **Status:** Accepted (approved 2026-10-25, after the T5 close). The paid session may still supersede parts of it.
 - **Date:** 2026-10-25
 
 ## Context
