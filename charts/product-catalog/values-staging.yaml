@@ -1,0 +1,25 @@
+# staging: the kind cluster catalog-staging (terraform/envs/staging). Layered on top of
+# values.yaml; only what differs from it goes here. Prod-like: values.yaml's replicas,
+# autoscaling (catalog-api 2-5) and PDBs, plus more memory for catalog-api.
+# Render it without a cluster:
+#   helm template product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-staging.yaml
+
+catalogApi:
+  # ADR-0011: memory request = limit. More headroom than dev's 256Mi.
+  resources:
+    requests:
+      memory: 384Mi
+    limits:
+      memory: 384Mi
+  # Seeded like dev, so both environments have the same 10,000 products to test with.
+  seed:
+    enabled: true
+  route:
+    # *.localhost resolves to 127.0.0.1 in curl and browsers. The host port (8090) isn't
+    # part of the route: Gateway API matches the hostname without the port.
+    hostname: catalog.staging.localhost
+
+postgres:
+  auth:
+    # Local only, the same as Compose.
+    password: catalog

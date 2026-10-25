@@ -1,12 +1,29 @@
-# Local kind cluster. Layered on top of values.yaml:
-#   helm install product-catalog charts/product-catalog -n catalog --create-namespace -f charts/product-catalog/values-dev.yaml --wait --timeout 15m
-# Only what differs from values.yaml goes here.
+# dev: the kind cluster catalog-dev (terraform/envs/dev). Layered on top of values.yaml;
+# only what differs from it goes here. Small on purpose: one pod each, no autoscaling.
+# Render it without a cluster:
+#   helm template product-catalog charts/product-catalog -n catalog -f charts/product-catalog/values-dev.yaml
 
 catalogApi:
+  # HPA off, so the Deployment's `replicas` applies again.
+  autoscaling:
+    enabled: false
+  replicas: 1
+  # minAvailable 1 with a single pod would block every node drain.
+  pdb:
+    enabled: false
+  # Helm merges maps key by key: only the CPU request changes; memory stays 256Mi.
+  resources:
+    requests:
+      cpu: 100m
   seed:
     enabled: true
   route:
     hostname: catalog.localhost
+
+searchService:
+  replicas: 1
+  pdb:
+    enabled: false
 
 postgres:
   auth:
