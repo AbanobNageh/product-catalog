@@ -152,4 +152,30 @@ describe('products (e2e)', () => {
     await http.get(`/products/${id}`).expect(404);
     await http.get('/readyz').expect(200);
   });
+
+  it('validates maxStock itself and forwards it with sort=stock_asc', async () => {
+    const http = request(app.getHttpServer());
+    fake.status = 200; // the lifecycle test leaves it down
+
+    for (const [bad, message] of [
+      ['-1', 'maxStock must not be less than 0'],
+      ['abc', 'maxStock must be an integer number'],
+    ]) {
+      const res = await http
+        .get(`/products/search?maxStock=${bad}`)
+        .expect(400);
+      expect(res.body.message).toContain(message);
+    }
+
+    await http.get('/products/search?maxStock=5&sort=stock_asc').expect(200);
+    const forwarded = fake.calls
+      .filter((c) => c.method === 'GET' && c.path.startsWith('/search'))
+      .map((c) => Object.fromEntries(new URL(c.path, fake.url).searchParams));
+    expect(forwarded).toContainEqual({
+      maxStock: '5',
+      sort: 'stock_asc',
+      page: '1',
+      size: '20',
+    });
+  });
 });

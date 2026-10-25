@@ -20,6 +20,17 @@ describe('SearchProductsQuery', () => {
       parse({ minPrice: '10000', maxPrice: '50000', inStock: 'true', page: '2' }),
     ).toMatchObject({ minPrice: 10000, maxPrice: 50000, inStock: true, page: 2 });
     expect(parse({ inStock: 'false' })).toMatchObject({ inStock: false });
+    expect(parse({ maxStock: '5', sort: 'stock_asc' })).toMatchObject({
+      maxStock: 5,
+      sort: 'stock_asc',
+    });
+  });
+
+  // 0 is a real filter (out of stock only), not "unset".
+  it('keeps maxStock 0', async () => {
+    const q = parse({ maxStock: '0' });
+    expect(q.maxStock).toBe(0);
+    await expect(validate(q)).resolves.toEqual([]);
   });
 
   // Review M3: `?maxPrice=` used to become 0 and silently filter to free products.
@@ -28,6 +39,14 @@ describe('SearchProductsQuery', () => {
     expect(q.maxPrice).toBeUndefined();
     expect(q.minPrice).toBeUndefined();
     await expect(validate(q)).resolves.toEqual([]);
+  });
+
+  it('treats an empty maxStock as unset', async () => {
+    for (const maxStock of ['', ' ']) {
+      const q = parse({ maxStock });
+      expect(q.maxStock).toBeUndefined();
+      await expect(validate(q)).resolves.toEqual([]);
+    }
   });
 
   it.each([
@@ -40,6 +59,10 @@ describe('SearchProductsQuery', () => {
     ['a fractional maxPrice', { maxPrice: '10.5' }, 'maxPrice'],
     ['size above 100', { size: '101' }, 'size'],
     ['page 0', { page: '0' }, 'page'],
+    ['a negative maxStock', { maxStock: '-1' }, 'maxStock'],
+    ['a non-numeric maxStock', { maxStock: 'abc' }, 'maxStock'],
+    ['a maxStock above the int4 maximum', { maxStock: '2147483648' }, 'maxStock'],
+    ['a fractional maxStock', { maxStock: '1.5' }, 'maxStock'],
   ])('rejects %s', async (_, query, property) => {
     await expect(invalid(query)).resolves.toEqual([property]);
   });

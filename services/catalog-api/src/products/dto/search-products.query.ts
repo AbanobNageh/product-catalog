@@ -14,7 +14,13 @@ import {
 import type { SearchQuery, SearchSort } from '../../search/search.ports';
 import { INT4_MAX } from './create-product.dto';
 
-const SORTS: readonly SearchSort[] = ['relevance', 'price_asc', 'price_desc', 'newest'];
+const SORTS: readonly SearchSort[] = [
+  'relevance',
+  'price_asc',
+  'price_desc',
+  'newest',
+  'stock_asc',
+];
 
 // Limits search-service also enforces (internal/query/params.go). Checking them
 // here gives users catalog-api's own 400 instead of a forwarded error.
@@ -110,7 +116,24 @@ export class SearchProductsQuery implements SearchQuery {
   @IsBoolean()
   inStock?: boolean;
 
-  @ApiPropertyOptional({ enum: SORTS, default: 'relevance' })
+  @ApiPropertyOptional({
+    description:
+      'Only products with stock ≤ maxStock, for example 5 for low stock (0: out of stock only). Combine with sort=stock_asc',
+    example: 5,
+  })
+  @IsOptional()
+  @Transform(toOptionalInt)
+  @IsInt()
+  @Min(0)
+  @Max(INT4_MAX)
+  maxStock?: number;
+
+  @ApiPropertyOptional({
+    enum: SORTS,
+    default: 'relevance',
+    description:
+      'relevance needs q (without q it falls back to newest); stock_asc sorts by stock, lowest first. Ties are ordered by id',
+  })
   @IsIn(SORTS)
   sort: SearchSort = 'relevance';
 

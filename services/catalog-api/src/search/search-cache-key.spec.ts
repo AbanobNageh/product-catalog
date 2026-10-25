@@ -37,6 +37,13 @@ describe('searchCacheKey', () => {
     );
   });
 
+  it('separates queries that differ only in maxStock, including 0', () => {
+    const keys = [base, { ...base, maxStock: 5 }, { ...base, maxStock: 0 }].map(
+      (q) => searchCacheKey(q, 1),
+    );
+    expect(new Set(keys).size).toBe(3);
+  });
+
   it('gives different pages different keys', () => {
     expect(searchCacheKey({ ...base, page: 2 }, 1)).not.toBe(
       searchCacheKey(base, 1),

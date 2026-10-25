@@ -56,7 +56,8 @@ export class SearchUnavailableError extends Error {
   override name = 'SearchUnavailableError';
 }
 
-export type SearchSort = 'relevance' | 'price_asc' | 'price_desc' | 'newest';
+export type SearchSort =
+  'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'stock_asc';
 
 export interface SearchQuery {
   q?: string;
@@ -67,6 +68,8 @@ export interface SearchQuery {
   /** Cents, like priceCents. */
   maxPrice?: number;
   inStock?: boolean;
+  /** Inclusive: only products with stock ≤ maxStock. */
+  maxStock?: number;
   sort: SearchSort;
   page: number;
   size: number;

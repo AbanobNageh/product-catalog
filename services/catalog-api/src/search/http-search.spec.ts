@@ -213,7 +213,8 @@ describe('HTTP search adapters', () => {
         q: 'phone & case #1 +é',
         minPrice: 0,
         inStock: false,
-        sort: 'price_asc',
+        maxStock: 0,
+        sort: 'stock_asc',
         page: 2,
         size: 10,
       });
@@ -221,7 +222,8 @@ describe('HTTP search adapters', () => {
       expect(params.get('q')).toBe('phone & case #1 +é');
       expect(params.get('minPrice')).toBe('0');
       expect(params.get('inStock')).toBe('false');
-      expect(params.get('sort')).toBe('price_asc');
+      expect(params.get('maxStock')).toBe('0');
+      expect(params.get('sort')).toBe('stock_asc');
       expect(params.get('page')).toBe('2');
       expect(params.get('size')).toBe('10');
       expect(params.has('maxPrice')).toBe(false);
