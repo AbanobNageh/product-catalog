@@ -12,7 +12,6 @@ A two-service product catalogue (NestJS `catalog-api` + Go `search-service`, wit
 ## Setup
 - Host: Windows 11, Docker Desktop (WSL2). Give **PowerShell** commands.
 - Installed: Docker 29.8, kubectl 1.36 (includes Kustomize), kind 0.33, Helm 4.3.1, Terraform 1.16.6 (winget), k6, Go 1.26, Node 24.
-- Optional: k9s (`winget install Derailed.k9s`).
 - **Docker Desktop memory:** WSL2 needs at least 8 GB (in `.wslconfig`).
 
 ## Commands

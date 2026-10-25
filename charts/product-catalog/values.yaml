@@ -7,7 +7,8 @@
 catalogApi:
   image:
     repository: catalog-api
-    # Load it into kind first (`kind load docker-image`). Never `latest` (k8s-pitfalls).
+    # Load it into kind first (`kind load docker-image`). Never `latest`: it defaults
+    # imagePullPolicy to Always (modules/app rejects anything but a version).
     tag: "0.1.1"
     pullPolicy: IfNotPresent
   # The migration image is built from the same commit as the app, with the same tag (ADR-0009),

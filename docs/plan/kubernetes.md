@@ -2,7 +2,7 @@
 
 Runs on a local **kind** cluster in its own namespace, `catalog`. Plain YAML until module K7, then Helm. Estimated time: 1–2 weeks.
 
-How each module runs: `.claude/skills/teach-module/SKILL.md`. Known pitfalls (ingress-nginx retirement, Bitnami, kind image tags): `.claude/rules/k8s-pitfalls.md`.
+How each module runs: `.claude/skills/teach-module/SKILL.md`. Known pitfalls (ingress-nginx retirement, Bitnami, kind image tags) are now handled in the code: Traefik + Gateway API (ADR-0010), our own Postgres/Redis templates, pinned image tags (`.claude/rules/k8s-pitfalls.md` was removed at the T5 close).
 
 **K0. Concepts and setup**
 - **Learn:**
