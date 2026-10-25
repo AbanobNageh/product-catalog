@@ -38,7 +38,7 @@ catalog-api (`services/catalog-api`):
 - API keys (ADR-0020): every endpoint except `/healthz`, `/readyz` and `/docs` needs `Authorization: Bearer <key>`. Scopes: `read` (GETs) < `write` (POST, PATCH) < `admin` (DELETE, `/admin/reindex`). Compose and `.env` use the dev keys from `.env.example` (not secret), for example `curl.exe -s "localhost:3000/products/search?q=phone" -H "Authorization: Bearer dev-read-key-not-secret-0000000000000000"`. In Swagger, use **Authorize**. On kind, Terraform generates them: `terraform -chdir=terraform/envs/<env> output -raw read_api_key` (`write_api_key`, `admin_api_key`). No key or an unknown one: 401; a key with too low a scope: 403 naming the scope needed. Rotate one (it rolls the catalog-api pods): `terraform -chdir=terraform/envs/<env> apply '-replace=module.app.random_password.api_key[\"write\"]'`
 - PowerShell 5.1 strips inner double quotes from `curl.exe` arguments: write `If-Match` as `-H 'If-Match: \"3\"'` and JSON bodies as `-d '{\"stock\":2}'`
 - Seed 10,000 products, then reindex: `npm run seed`. It needs the full Compose stack up (catalog-api on :3000). Re-running it is safe: the fixed `SEED-00001…` SKUs are skipped. Env: `DATABASE_URL` and `CATALOG_API_KEY` (the admin key; both from `.env`), and `CATALOG_API_URL` (default `http://localhost:3000`). It exits 1 before inserting anything if a variable is missing, and if catalog-api is unreachable, refuses the key (401/403), or the reindex fails, reports `failed` items or doesn't swap
-- Seed from inside Compose, the way a K2 Job will run it: `docker compose run --rm -e CATALOG_API_URL=http://catalog-api:3000 -e CATALOG_API_KEY=dev-admin-key-not-secret-000000000000000 catalog-api node dist/seed/main.js`
+- Seed with only Docker (the README's quick start; the Helm seed hook runs the same command): `docker compose run --rm -e CATALOG_API_URL=http://catalog-api:3000 -e CATALOG_API_KEY=dev-admin-key-not-secret-000000000000000 catalog-api node dist/seed/main.js`
 - Prisma's update notice suggests `prisma@latest`. Ignore it: that tag is an 8.0 RC, and we stay pinned to 7.10.1 (ADR-0004)
 
 search-service (`services/search-service`):
@@ -115,6 +115,7 @@ Terraform (run each command from the config's folder, or pass `-chdir=<folder>`)
 
 ## Who writes what
 - **Part 1, the app (`services/`, `docker-compose.yml`):** done (1.1–1.5). The AI changes it only when I ask, for example to fix something Part 2 uncovers.
+- **Part 5, the agent-ready API:** done (5.1–5.4). Same as Part 1: the AI changes the app only when I ask.
 - **Parts 2–3, Kubernetes and Terraform (`k8s/`, `charts/`, `terraform/`):** since K4, the AI writes every manifest, chart and HCL file and explains every new term in it, following `.claude/skills/teach-module/SKILL.md` and `.claude/rules/tutor-mode.md`. I make the design decisions and run every apply, install and upgrade. Quizzes and explain-backs are paused until the project is finished.
 
 ## Rules

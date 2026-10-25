@@ -2,7 +2,7 @@
 
 Estimated time: about 1 week.
 
-How each module runs: `.claude/skills/teach-module/SKILL.md`. Known pitfalls (Helm provider v3 syntax, cost safety): `.claude/rules/terraform-pitfalls.md`.
+How each module runs: `.claude/skills/teach-module/SKILL.md`. Cost safety: the Rules in `AGENTS.md`.
 
 **T0. Concepts**
 - **Learn:** providers, resources, data sources, state, `init`/`plan`/`apply`/`destroy`, HCL basics, the lock file.
