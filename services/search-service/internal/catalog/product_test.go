@@ -101,6 +101,21 @@ func TestDecodeProduct(t *testing.T) {
 	}
 }
 
+// catalog-api's ProductResponse has a version counter (ADR-0019) that the
+// index doesn't store: the mapping is dynamic: strict, so it must be dropped.
+func TestDecodeProductIgnoresVersion(t *testing.T) {
+	raw, _ := json.Marshal(valid())
+	raw = append(raw[:len(raw)-1], []byte(`,"version":4}`)...)
+	p, err := DecodeProduct(raw)
+	if err != nil || p != valid() {
+		t.Fatalf("got %+v, %v", p, err)
+	}
+	doc, _ := json.Marshal(ToDoc(p))
+	if strings.Contains(string(doc), "version") {
+		t.Fatalf("indexed document has a version: %s", doc)
+	}
+}
+
 func TestDecodeProductBothNumbersMissing(t *testing.T) {
 	_, err := DecodeProduct([]byte(`{"id":"a"}`))
 	for _, f := range []string{"priceCents", "stock"} {
