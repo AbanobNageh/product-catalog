@@ -37,5 +37,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 3.3"
     }
+    # random_password for the API keys (modules/app, ADR-0020).
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9"
+    }
   }
 }

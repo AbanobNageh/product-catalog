@@ -89,6 +89,19 @@ on top of its built-in list (the file is mounted by the extraCa* helpers below).
 {{- end }}
 
 {{/*
+catalog-api's three API keys (ADR-0020), from the Secret named by catalogApi.apiKeysSecret.
+Takes the root context ($).
+*/}}
+{{- define "product-catalog.apiKeysEnv" -}}
+{{- $env := list }}
+{{- range list "READ_API_KEY" "WRITE_API_KEY" "ADMIN_API_KEY" }}
+{{- $ref := dict "name" $.Values.catalogApi.apiKeysSecret "key" . }}
+{{- $env = append $env (dict "name" . "valueFrom" (dict "secretKeyRef" $ref)) }}
+{{- end }}
+{{- toYaml $env }}
+{{- end }}
+
+{{/*
 The extra CA certificates' volume (pod level) and mount (container level), for the
 catalog-api pods. Both render nothing when catalogApi.extraCaCerts.configMap is empty, so
 the templates include them with `with`, which skips an empty result.

@@ -23,6 +23,11 @@ spec:
         # Env vars are read only at start, so a ConfigMap change alone wouldn't reach running
         # pods. The ConfigMap's hash in the pod template makes any change roll the pods.
         checksum/config: {{ include (print $.Template.BasePath "/catalog-api/configmap.yaml") $ | sha256sum }}
+        {{- with .apiKeysChecksum }}
+        # The same for the API key Secret, whose content the chart can't see: Terraform passes
+        # a hash of the keys, so rotating one rolls the pods and none keeps the old key.
+        checksum/api-keys: {{ . | quote }}
+        {{- end }}
     spec:
       {{- with include "product-catalog.extraCaVolumes" $ }}
       {{- . | nindent 6 }}
@@ -36,6 +41,7 @@ spec:
             name: catalog-api
         env:
         {{- include "product-catalog.databaseEnv" $ | nindent 8 }}
+        {{- include "product-catalog.apiKeysEnv" $ | nindent 8 }}
         {{- with include "product-catalog.extraCaVolumeMounts" $ }}
         {{- . | nindent 8 }}
         {{- end }}

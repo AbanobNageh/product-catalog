@@ -6,11 +6,11 @@
 variable "catalog_api_version" {
   description = "Tag of catalog-api and catalog-api-migrate in dev. Both images must exist in the local Docker daemon."
   type        = string
-  default     = "0.1.1"
+  default     = "0.2.0"
 }
 
 variable "search_service_version" {
   description = "Tag of search-service in dev. The image must exist in the local Docker daemon."
   type        = string
-  default     = "0.1.0"
+  default     = "0.2.0"
 }
