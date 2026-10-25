@@ -1,9 +1,10 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import type {
   Bucket,
   BulkIndexFailure,
   BulkIndexResult,
   PriceBucket,
+  SearchHit,
   SearchResult,
 } from '../../search/search.ports';
 import { ProductResponse } from './product.response';
@@ -37,9 +38,14 @@ class FacetsResponse {
   price: PriceBucketResponse[];
 }
 
+/** A search hit: a product without `version`. */
+export class SearchHitResponse
+  extends OmitType(ProductResponse, ['version'])
+  implements SearchHit {}
+
 export class SearchResultResponse implements SearchResult {
-  @ApiProperty({ type: [ProductResponse] })
-  hits: ProductResponse[];
+  @ApiProperty({ type: [SearchHitResponse] })
+  hits: SearchHitResponse[];
 
   @ApiProperty()
   total: number;

@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  PreconditionFailedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
@@ -66,7 +67,8 @@ export class ProductsService {
   async findOne(id: string): Promise<ProductResponse> {
     const key = productKey(id);
     const cached = await this.cache.getJson<ProductResponse>(key);
-    if (cached) return cached;
+    // Cached before 5.2 (no version): a miss, or the ETag would be "undefined".
+    if (cached && typeof cached.version === 'number') return cached;
 
     const row = await this.prisma.product.findUnique({ where: { id } });
     if (!row) throw new NotFoundException(`product ${id} not found`);
@@ -88,14 +90,28 @@ export class ProductsService {
     return { items: rows.map(toProductResponse), total, page, limit };
   }
 
-  async update(id: string, dto: UpdateProductDto): Promise<ProductResponse> {
+  /**
+   * Every update increments `version`. With `expectedVersion` (from If-Match)
+   * the version is part of the WHERE clause, so a concurrent write makes this
+   * one match no row instead of overwriting it (ADR-0019).
+   */
+  async update(
+    id: string,
+    dto: UpdateProductDto,
+    expectedVersion?: number,
+  ): Promise<ProductResponse> {
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException('at least one field is required');
     }
     const product = toProductResponse(
       await this.prisma.product
-        .update({ where: { id }, data: dto })
-        .catch(mapPrismaError),
+        .update({
+          where: whereVersion(id, expectedVersion),
+          // The DTO is plain data; Prisma wants a plain object, not its prototype.
+          // oxlint-disable-next-line typescript/no-misused-spread
+          data: { ...dto, version: { increment: 1 } },
+        })
+        .catch((err: unknown) => this.mapWriteError(err, id, expectedVersion)),
     );
     await this.cache.del(productKey(id));
     await this.afterWrite('upsert', id, () => this.indexer.upsert(product));
@@ -107,13 +123,15 @@ export class ProductsService {
    * upsert (version = updatedAt), even if this clock is behind the one that
    * wrote it, and leaves a tombstone that rejects a reindex's stale copy.
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string, expectedVersion?: number): Promise<void> {
     const row = await this.prisma.product
-      .delete({ where: { id } })
-      .catch(mapPrismaError);
-    const version = Math.max(Date.now(), row.updatedAt.getTime() + 1);
+      .delete({ where: whereVersion(id, expectedVersion) })
+      .catch((err: unknown) => this.mapWriteError(err, id, expectedVersion));
+    const indexVersion = Math.max(Date.now(), row.updatedAt.getTime() + 1);
     await this.cache.del(productKey(id));
-    await this.afterWrite('remove', id, () => this.indexer.remove(id, version));
+    await this.afterWrite('remove', id, () =>
+      this.indexer.remove(id, indexVersion),
+    );
   }
 
   /**
@@ -237,6 +255,38 @@ export class ProductsService {
     return { ...result, swapped: false };
   }
 
+  /**
+   * With an expected version, "no row matched" (P2025) is either a missing
+   * product (404) or a newer version (412); one more read tells them apart.
+   */
+  private async mapWriteError(
+    err: unknown,
+    id: string,
+    expectedVersion: number | undefined,
+  ): Promise<never> {
+    if (
+      expectedVersion !== undefined &&
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2025'
+    ) {
+      const current = await this.prisma.product.findUnique({
+        where: { id },
+        select: { version: true },
+      });
+      if (!current) throw new NotFoundException('product not found');
+      // A stale cached copy (a failed del, or a read racing the last write)
+      // would give the re-reading client the old ETag again: drop it.
+      await this.cache.del(productKey(id));
+      throw new PreconditionFailedException({
+        statusCode: 412,
+        message: `product changed: you sent version ${expectedVersion}, current is ${current.version}`,
+        error: 'Precondition Failed',
+        currentVersion: current.version,
+      });
+    }
+    return mapPrismaError(err);
+  }
+
   /** Best effort: a failed abort is logged, never thrown over the original error. */
   private async abortQuietly(build: string): Promise<void> {
     try {
@@ -288,6 +338,12 @@ function reindexError(err: unknown, sent: number): unknown {
     );
   }
   return err;
+}
+
+function whereVersion(id: string, expectedVersion: number | undefined) {
+  return expectedVersion === undefined
+    ? { id }
+    : { id, version: expectedVersion };
 }
 
 /** Turns the Prisma errors a client can cause into HTTP errors. */

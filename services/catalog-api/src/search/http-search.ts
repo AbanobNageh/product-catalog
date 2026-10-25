@@ -47,10 +47,10 @@ export class HttpSearchIndexer implements SearchIndexer {
     );
   }
 
-  async remove(id: string, version: number): Promise<void> {
+  async remove(id: string, indexVersion: number): Promise<void> {
     await callSearchService(
       'DELETE',
-      `${productUrl(this.baseUrl, id)}?version=${version}`,
+      `${productUrl(this.baseUrl, id)}?version=${indexVersion}`,
       undefined,
       this.timeouts.requestMs,
     );

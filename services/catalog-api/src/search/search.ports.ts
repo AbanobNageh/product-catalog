@@ -7,8 +7,12 @@ import type { ProductResponse } from '../products/dto/product.response';
  */
 export interface SearchIndexer {
   upsert(product: ProductResponse): Promise<void>;
-  /** `version` (ms) lets search-service ignore a delete older than a newer write. */
-  remove(id: string, version: number): Promise<void>;
+  /**
+   * `indexVersion` (Unix ms, sent as search-service's `?version=`) lets
+   * search-service ignore a delete older than a newer write. It is not the
+   * product's `version` counter (ADR-0019).
+   */
+  remove(id: string, indexVersion: number): Promise<void>;
 }
 
 /**
@@ -87,9 +91,15 @@ export interface PriceBucket extends Bucket {
   to?: number;
 }
 
+/**
+ * A product as search returns it: no `version`, because search may be stale
+ * (read GET /products/:id before writing; ADR-0019).
+ */
+export type SearchHit = Omit<ProductResponse, 'version'>;
+
 /** The response contract search-service implements in milestone 1.3. */
 export interface SearchResult {
-  hits: ProductResponse[];
+  hits: SearchHit[];
   total: number;
   facets: {
     category: Bucket[];

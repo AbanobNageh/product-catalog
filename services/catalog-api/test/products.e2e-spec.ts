@@ -153,6 +153,93 @@ describe('products (e2e)', () => {
     await http.get('/readyz').expect(200);
   });
 
+  it('refuses a stale If-Match with 412 and keeps ETag equal to version', async () => {
+    const http = request(app.getHttpServer());
+    fake.status = 200; // the lifecycle test leaves it down
+    const sku = `E2E-IFM-${Date.now()}`;
+
+    const created = await http
+      .post('/products')
+      .send({ ...body, sku })
+      .expect(201);
+    const id: string = created.body.id;
+    expect(created.body.version).toBe(1);
+    expect(created.headers.etag).toBe('"1"');
+
+    const read = await http.get(`/products/${id}`).expect(200);
+    expect(read.headers.etag).toBe('"1"');
+    expect(read.body.version).toBe(1);
+
+    const first = await http
+      .patch(`/products/${id}`)
+      .set('If-Match', '"1"')
+      .send({ stock: 2 })
+      .expect(200);
+    expect(first.body.version).toBe(2);
+    expect(first.headers.etag).toBe('"2"');
+
+    // The same write again, from a client that still has version 1.
+    const stale = await http
+      .patch(`/products/${id}`)
+      .set('If-Match', '"1"')
+      .send({ stock: 13 })
+      .expect(412);
+    expect(stale.body).toEqual({
+      statusCode: 412,
+      message: 'product changed: you sent version 1, current is 2',
+      error: 'Precondition Failed',
+      currentVersion: 2,
+    });
+    // Unchanged by the 412, and the cache was invalidated by the 200.
+    const afterStale = await http.get(`/products/${id}`).expect(200);
+    expect(afterStale.body).toMatchObject({ stock: 2, version: 2 });
+
+    // If-Match stays optional.
+    const unconditional = await http
+      .patch(`/products/${id}`)
+      .send({ stock: 3 })
+      .expect(200);
+    expect(unconditional.body.version).toBe(3);
+
+    const weak = await http
+      .patch(`/products/${id}`)
+      .set('If-Match', 'W/"1"')
+      .send({ stock: 4 })
+      .expect(400);
+    expect(weak.body.message).toContain('If-Match must be one strong ETag');
+
+    // A rejected write doesn't use up a version: the same ETag still works.
+    const other = await http
+      .post('/products')
+      .send({ ...body, sku: `${sku}-B` })
+      .expect(201);
+    await http
+      .patch(`/products/${id}`)
+      .set('If-Match', '"3"')
+      .send({ sku: other.body.sku })
+      .expect(409);
+    const afterConflict = await http
+      .patch(`/products/${id}`)
+      .set('If-Match', '"3"')
+      .send({ stock: 5 })
+      .expect(200);
+    expect(afterConflict.body.version).toBe(4);
+
+    await http.get(`/products/${id}`).set('If-None-Match', '"4"').expect(304);
+
+    await http.delete(`/products/${id}`).set('If-Match', '"1"').expect(412);
+    await http.get(`/products/${id}`).expect(200);
+    await http.delete(`/products/${id}`).set('If-Match', '"4"').expect(204);
+    await http.delete(`/products/${id}`).set('If-Match', '"4"').expect(404);
+    await http.delete(`/products/${other.body.id}`).expect(204);
+
+    await http
+      .patch('/products/0b8f6a52-6a8e-4b8e-9d55-2f1f3c1d9e01')
+      .set('If-Match', '"1"')
+      .send({ stock: 1 })
+      .expect(404);
+  });
+
   it('validates maxStock itself and forwards it with sort=stock_asc', async () => {
     const http = request(app.getHttpServer());
     fake.status = 200; // the lifecycle test leaves it down

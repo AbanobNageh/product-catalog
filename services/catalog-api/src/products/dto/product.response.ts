@@ -38,6 +38,13 @@ export class ProductResponse {
 
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
+
+  @ApiProperty({
+    description:
+      'Increments on every update; send it back as If-Match: "<version>" (the ETag header)',
+    example: 1,
+  })
+  version: number;
 }
 
 export class ProductPage {
@@ -67,5 +74,6 @@ export function toProductResponse(p: Product): ProductResponse {
     stock: p.stock,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
+    version: p.version,
   };
 }

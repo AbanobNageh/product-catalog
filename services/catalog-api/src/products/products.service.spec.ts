@@ -3,6 +3,7 @@ import {
   ConflictException,
   Logger,
   NotFoundException,
+  PreconditionFailedException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, type Product } from '../generated/prisma/client';
@@ -41,6 +42,7 @@ const product: Product = {
   stock: 3,
   createdAt: new Date('2026-10-21T10:00:00.000Z'),
   updatedAt: new Date('2026-10-21T10:00:00.000Z'),
+  version: 1,
 };
 
 const createBody = {
@@ -148,6 +150,20 @@ describe('ProductsService', () => {
       );
     });
 
+    // A product cached before 5.2 has no version: serving it would send ETag "undefined".
+    it('treats a cached product without a version as a miss (cached before 5.2)', async () => {
+      const { version: _, ...stale } = toProductResponse(product);
+      cache.getJson.mockResolvedValue(stale);
+      db.findUnique.mockResolvedValue(product);
+      await expect(service.findOne(ID)).resolves.toMatchObject({ version: 1 });
+      expect(db.findUnique).toHaveBeenCalledWith({ where: { id: ID } });
+      expect(cache.setJson).toHaveBeenCalledWith(
+        `product:${ID}`,
+        toProductResponse(product),
+        300,
+      );
+    });
+
     it('throws NotFound for an unknown id and caches nothing', async () => {
       db.findUnique.mockResolvedValue(null);
       await expect(service.findOne(ID)).rejects.toBeInstanceOf(
@@ -235,7 +251,7 @@ describe('ProductsService', () => {
       );
       expect(db.update).toHaveBeenCalledWith({
         where: { id: ID },
-        data: { priceCents: 1 },
+        data: { priceCents: 1, version: { increment: 1 } },
       });
       expect(cache.del).toHaveBeenCalledWith(`product:${ID}`);
       expect(indexer.upsert).toHaveBeenCalledWith(toProductResponse(updated));
@@ -244,6 +260,55 @@ describe('ProductsService', () => {
       const [incr] = cache.incr.mock.invocationCallOrder;
       expect(del).toBeLessThan(upsert);
       expect(upsert).toBeLessThan(incr);
+    });
+
+    it('with a matching version, updates where id and version match', async () => {
+      db.update.mockResolvedValue({ ...product, stock: 5, version: 4 });
+      await expect(service.update(ID, { stock: 5 }, 3)).resolves.toMatchObject({
+        stock: 5,
+        version: 4,
+      });
+      expect(db.update).toHaveBeenCalledWith({
+        where: { id: ID, version: 3 },
+        data: { stock: 5, version: { increment: 1 } },
+      });
+    });
+
+    it('with a stale version, throws 412 with the current version and drops only the cached copy', async () => {
+      db.update.mockRejectedValue(prismaError('P2025'));
+      db.findUnique.mockResolvedValue({ version: 4 });
+      const err = await service.update(ID, { stock: 5 }, 3).catch((e) => e);
+      expect(err).toBeInstanceOf(PreconditionFailedException);
+      expect(err.getResponse()).toEqual({
+        statusCode: 412,
+        message: 'product changed: you sent version 3, current is 4',
+        error: 'Precondition Failed',
+        currentVersion: 4,
+      });
+      expect(db.findUnique).toHaveBeenCalledWith({
+        where: { id: ID },
+        select: { version: true },
+      });
+      // A stale cached copy would hand the re-reading client the old ETag again
+      // (412 loop): drop it so the re-read comes from Postgres.
+      expect(cache.del).toHaveBeenCalledWith(`product:${ID}`);
+      expect(indexer.upsert).not.toHaveBeenCalled();
+      expect(cache.incr).not.toHaveBeenCalled();
+    });
+
+    it('with a version, maps a missing product to 404, not 412', async () => {
+      db.update.mockRejectedValue(prismaError('P2025'));
+      db.findUnique.mockResolvedValue(null);
+      await expect(service.update(ID, { stock: 5 }, 3)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('rejects an empty body before touching the database, even with a version', async () => {
+      await expect(service.update(ID, {}, 3)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(db.update).not.toHaveBeenCalled();
     });
 
     it('rejects an empty body', async () => {
@@ -258,6 +323,7 @@ describe('ProductsService', () => {
       await expect(service.update(ID, { stock: 1 })).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(db.findUnique).not.toHaveBeenCalled();
       expect(cache.incr).not.toHaveBeenCalled();
     });
 
@@ -278,6 +344,31 @@ describe('ProductsService', () => {
       expect(indexer.remove).toHaveBeenCalledWith(ID, expect.any(Number));
       expect(indexer.remove.mock.invocationCallOrder[0]).toBeLessThan(
         cache.incr.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('with a matching version, deletes where id and version match', async () => {
+      db.delete.mockResolvedValue(product);
+      await service.remove(ID, 3);
+      expect(db.delete).toHaveBeenCalledWith({ where: { id: ID, version: 3 } });
+    });
+
+    it('with a stale version, throws 412, drops the cached copy and leaves the index alone', async () => {
+      db.delete.mockRejectedValue(prismaError('P2025'));
+      db.findUnique.mockResolvedValue({ version: 4 });
+      const err = await service.remove(ID, 3).catch((e) => e);
+      expect(err).toBeInstanceOf(PreconditionFailedException);
+      expect(err.getResponse()).toMatchObject({ currentVersion: 4 });
+      expect(cache.del).toHaveBeenCalledWith(`product:${ID}`);
+      expect(indexer.remove).not.toHaveBeenCalled();
+      expect(cache.incr).not.toHaveBeenCalled();
+    });
+
+    it('with a version, maps a missing product to 404', async () => {
+      db.delete.mockRejectedValue(prismaError('P2025'));
+      db.findUnique.mockResolvedValue(null);
+      await expect(service.remove(ID, 3)).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
 

@@ -24,6 +24,8 @@ model Product {
   stock       Int
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  /// Optimistic concurrency (ADR-0019): +1 on every update.
+  version     Int      @default(1)
 
   @@index([category])
   @@map("products")
