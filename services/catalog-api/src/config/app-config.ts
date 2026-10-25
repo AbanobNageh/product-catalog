@@ -1,4 +1,6 @@
 import type { LogLevel } from '@nestjs/common';
+import type { Scope } from '../auth/scope';
+import { apiKeyProblem } from './api-key-format';
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
@@ -9,7 +11,15 @@ export interface AppConfig {
   /** Base URL of search-service, without a trailing slash. */
   searchServiceUrl: string;
   logLevel: LogLevel;
+  /** One key per scope (ADR-0020). Never log these. */
+  apiKeys: Record<Scope, string>;
 }
+
+const API_KEY_VARS = {
+  read: 'READ_API_KEY',
+  write: 'WRITE_API_KEY',
+  admin: 'ADMIN_API_KEY',
+} as const satisfies Record<Scope, string>;
 
 /** Lowest to highest severity, so a level enables itself and everything after it. */
 export const LOG_LEVELS: readonly LogLevel[] = [
@@ -57,6 +67,28 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     );
   }
 
+  // Messages name the variable, never the value: a key must not reach a log.
+  const apiKeys = {
+    read: required(API_KEY_VARS.read),
+    write: required(API_KEY_VARS.write),
+    admin: required(API_KEY_VARS.admin),
+  };
+  const scopes = Object.keys(API_KEY_VARS) as Scope[];
+  for (const scope of scopes) {
+    const problem =
+      apiKeys[scope] && apiKeyProblem(API_KEY_VARS[scope], apiKeys[scope]);
+    if (problem) errors.push(problem);
+  }
+  scopes.forEach((a, i) => {
+    for (const b of scopes.slice(i + 1)) {
+      if (apiKeys[a] && apiKeys[a] === apiKeys[b]) {
+        errors.push(
+          `${API_KEY_VARS[a]} and ${API_KEY_VARS[b]} must be different`,
+        );
+      }
+    }
+  });
+
   if (errors.length > 0) {
     throw new Error(`Invalid configuration:\n- ${errors.join('\n- ')}`);
   }
@@ -67,6 +99,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     redisUrl,
     searchServiceUrl,
     logLevel,
+    apiKeys,
   };
 }
 

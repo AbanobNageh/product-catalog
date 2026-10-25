@@ -1,5 +1,6 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/auth.decorators';
 import { APP_VERSION } from '../common/app-version';
 import { withTimeout } from '../common/with-timeout';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +21,7 @@ async function check(probe: () => Promise<unknown>): Promise<CheckStatus> {
 }
 
 @ApiTags('health')
+@Public()
 @Controller()
 export class HealthController {
   constructor(

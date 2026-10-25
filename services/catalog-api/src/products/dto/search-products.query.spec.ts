@@ -67,6 +67,17 @@ describe('SearchProductsQuery', () => {
     await expect(invalid(query)).resolves.toEqual([property]);
   });
 
+  // The 5.1 review: one message per bad integer, in search-service's words.
+  it.each([
+    [{ minPrice: '-1' }, 'minPrice must be a whole number from 0 to 2147483647'],
+    [{ maxStock: 'abc' }, 'maxStock must be a whole number from 0 to 2147483647'],
+    [{ page: 'abc' }, 'page must be a whole number from 1 to 2147483647'],
+    [{ size: '0' }, 'size must be a whole number from 1 to 100'],
+  ])('gives %p a single message', async (query, message) => {
+    const errors = await validate(parse(query));
+    expect(errors.flatMap((e) => Object.values(e.constraints ?? {}))).toEqual([message]);
+  });
+
   // The same limits search-service enforces, so users get catalog-api's own 400.
   describe('limits shared with search-service', () => {
     it.each([

@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { RequireScope } from '../auth/auth.decorators';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQuery } from './dto/list-products.query';
 import { PreconditionFailedResponse } from './dto/precondition-failed.response';
@@ -61,6 +62,7 @@ export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
   @Post()
+  @RequireScope('write')
   @ApiCreatedResponse({ type: ProductResponse, headers: ETAG_HEADER })
   @ApiBadRequestResponse({ description: 'Invalid body' })
   @ApiConflictResponse({ description: 'sku already exists' })
@@ -72,6 +74,7 @@ export class ProductsController {
   }
 
   @Get()
+  @RequireScope('read')
   @ApiOkResponse({ type: ProductPage })
   list(@Query() query: ListProductsQuery): Promise<ProductPage> {
     return this.products.list(query);
@@ -79,6 +82,7 @@ export class ProductsController {
 
   // Declared before ':id' so "search" isn't treated as an id.
   @Get('search')
+  @RequireScope('read')
   @ApiOkResponse({
     type: SearchResultResponse,
     description:
@@ -93,6 +97,7 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @RequireScope('read')
   @ApiOkResponse({
     type: ProductResponse,
     description: 'Served from Redis when cached',
@@ -108,6 +113,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @RequireScope('write')
   @ApiHeader(IF_MATCH_HEADER)
   @ApiOkResponse({ type: ProductResponse, headers: ETAG_HEADER })
   @ApiBadRequestResponse({ description: 'Invalid or empty body, or a malformed If-Match' })
@@ -131,6 +137,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @RequireScope('admin')
   @HttpCode(204)
   @ApiHeader(IF_MATCH_HEADER)
   @ApiNoContentResponse()

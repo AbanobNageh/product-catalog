@@ -69,7 +69,7 @@ services:
     build:
       context: services/catalog-api
       target: migrate
-    image: catalog-api-migrate:0.1.0
+    image: catalog-api-migrate:0.2.0
     environment:
       DATABASE_URL: postgresql://catalog:catalog@postgres:5432/catalog
     depends_on:
@@ -79,7 +79,7 @@ services:
 
   search-service:
     build: services/search-service
-    image: search-service:0.1.0
+    image: search-service:0.2.0
     environment:
       OPENSEARCH_URL: http://opensearch:9200
       LOG_LEVEL: info
@@ -97,7 +97,7 @@ services:
 
   catalog-api:
     build: services/catalog-api
-    image: catalog-api:0.1.0
+    image: catalog-api:0.2.0
     ports:
       - "3000:3000"
     environment:
@@ -105,6 +105,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       SEARCH_SERVICE_URL: http://search-service:8080
       LOG_LEVEL: log
+      # API keys (ADR-0020). Dev only, not secret: real environments get theirs
+      # from a Secret (Terraform generates them).
+      READ_API_KEY: dev-read-key-not-secret-0000000000000000
+      WRITE_API_KEY: dev-write-key-not-secret-000000000000000
+      ADMIN_API_KEY: dev-admin-key-not-secret-000000000000000
     healthcheck:
       # busybox wget ships in node:24-alpine. /readyz checks Postgres and Redis
       # only: search-service being down must not take catalog-api out (ADR-0001).

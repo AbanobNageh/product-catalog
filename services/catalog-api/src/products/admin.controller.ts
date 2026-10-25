@@ -6,6 +6,7 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { RequireScope } from '../auth/auth.decorators';
 import { ReindexResponse } from './dto/search-result.response';
 import { ProductsService } from './products.service';
 
@@ -20,6 +21,7 @@ export class AdminController {
    * while it runs.
    */
   @Post('reindex')
+  @RequireScope('admin')
   @HttpCode(200)
   @ApiOkResponse({
     type: ReindexResponse,

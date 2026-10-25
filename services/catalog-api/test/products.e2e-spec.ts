@@ -36,6 +36,13 @@ describe('products (e2e)', () => {
     await fake?.close();
   });
 
+  // Every endpoint needs a key (ADR-0020); these tests act as admin, and
+  // auth.e2e-spec.ts covers each scope.
+  const asAdmin = () =>
+    request
+      .agent(app.getHttpServer())
+      .set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`);
+
   // Unique per run, so the test needs no database reset.
   const body = {
     sku: `E2E-${Date.now()}`,
@@ -48,7 +55,7 @@ describe('products (e2e)', () => {
   };
 
   it('runs the product lifecycle against search-service, then while it is down', async () => {
-    const http = request(app.getHttpServer());
+    const http = asAdmin();
 
     const created = await http.post('/products').send(body).expect(201);
     const id: string = created.body.id;
@@ -154,7 +161,7 @@ describe('products (e2e)', () => {
   });
 
   it('refuses a stale If-Match with 412 and keeps ETag equal to version', async () => {
-    const http = request(app.getHttpServer());
+    const http = asAdmin();
     fake.status = 200; // the lifecycle test leaves it down
     const sku = `E2E-IFM-${Date.now()}`;
 
@@ -241,17 +248,17 @@ describe('products (e2e)', () => {
   });
 
   it('validates maxStock itself and forwards it with sort=stock_asc', async () => {
-    const http = request(app.getHttpServer());
+    const http = asAdmin();
     fake.status = 200; // the lifecycle test leaves it down
 
     for (const [bad, message] of [
-      ['-1', 'maxStock must not be less than 0'],
-      ['abc', 'maxStock must be an integer number'],
+      ['-1', 'maxStock must be a whole number from 0 to 2147483647'],
+      ['abc', 'maxStock must be a whole number from 0 to 2147483647'],
     ]) {
       const res = await http
         .get(`/products/search?maxStock=${bad}`)
         .expect(400);
-      expect(res.body.message).toContain(message);
+      expect(res.body.message).toEqual([message]); // one message (5.1 review)
     }
 
     await http.get('/products/search?maxStock=5&sort=stock_asc').expect(200);

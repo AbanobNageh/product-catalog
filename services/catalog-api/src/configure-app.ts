@@ -12,12 +12,29 @@ export function configureApp(app: INestApplication): void {
     }),
   );
 
-  const document = new DocumentBuilder()
-    .setTitle('catalog-api')
-    .setDescription('Product catalogue: CRUD, cache and search')
-    .setVersion(APP_VERSION)
-    .build();
   SwaggerModule.setup('docs', app, () =>
-    SwaggerModule.createDocument(app, document),
+    SwaggerModule.createDocument(app, openApiConfig()),
+  );
+}
+
+/** The OpenAPI document's header, shared with the OpenAPI tests. */
+export function openApiConfig() {
+  return (
+    new DocumentBuilder()
+      .setTitle('catalog-api')
+      .setDescription('Product catalogue: CRUD, cache and search')
+      .setVersion(APP_VERSION)
+      // ADR-0020: the Authorize button; @RequireScope marks each keyed operation.
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          // Not @nestjs/swagger's default JWT: these are opaque keys.
+          bearerFormat: 'API key',
+          description: 'An API key: read, write or admin scope',
+        },
+        'bearer',
+      )
+      .build()
   );
 }

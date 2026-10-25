@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { openApiConfig } from '../configure-app';
+import { HealthController } from '../health/health.controller';
+import { PrismaService } from '../prisma/prisma.service';
+import { RedisCache } from '../redis/redis-cache';
 import { AdminController } from './admin.controller';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
@@ -9,14 +13,15 @@ import { ProductsService } from './products.service';
 describe('OpenAPI document', () => {
   const document = async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [ProductsController, AdminController],
-      providers: [{ provide: ProductsService, useValue: {} }],
+      controllers: [ProductsController, AdminController, HealthController],
+      providers: [
+        { provide: ProductsService, useValue: {} },
+        { provide: PrismaService, useValue: {} },
+        { provide: RedisCache, useValue: {} },
+      ],
     }).compile();
     const app = moduleRef.createNestApplication();
-    const doc = SwaggerModule.createDocument(
-      app,
-      new DocumentBuilder().build(),
-    );
+    const doc = SwaggerModule.createDocument(app, openApiConfig());
     await app.close();
     return doc;
   };
@@ -55,6 +60,71 @@ describe('OpenAPI document', () => {
     const hit = schemas[ref.replace('#/components/schemas/', '')];
     expect(hit.properties).toHaveProperty('sku');
     expect(hit.properties).not.toHaveProperty('version');
+  });
+
+  // The 5.1 review: tool schemas generated from the document must reject 1.5 and -1.
+  it.each([
+    ['/products/search', ['minPrice', 'maxPrice', 'maxStock', 'page', 'size']],
+    ['/products', ['page', 'limit']],
+  ])(
+    '%s documents its integer parameters as integers with bounds',
+    async (path, names) => {
+      const params = ((await document()).paths[path].get?.parameters ?? []) as {
+        name: string;
+        schema?: { type?: string; minimum?: number; maximum?: number };
+      }[];
+      for (const name of names) {
+        const schema = params.find((p) => p.name === name)?.schema;
+        expect({ name, ...schema }).toMatchObject({
+          name,
+          type: 'integer',
+          minimum: expect.any(Number),
+          maximum: expect.any(Number),
+        });
+      }
+    },
+  );
+
+  // ADR-0020: the Authorize button in /docs, and 401/403 on every keyed route.
+  describe('API keys (ADR-0020)', () => {
+    type Op = { security?: unknown[]; responses: Record<string, unknown> };
+    const isHealth = (name: string) => /\/(healthz|readyz)$/.test(name);
+    const ops = async () =>
+      Object.entries((await document()).paths).flatMap(([path, item]) =>
+        Object.entries(item as Record<string, Op>).map(
+          ([method, op]) => [`${method} ${path}`, op] as const,
+        ),
+      );
+
+    it('defines the bearer scheme', async () => {
+      expect((await document()).components?.securitySchemes?.bearer).toEqual({
+        type: 'http',
+        scheme: 'bearer',
+        // Not the default JWT: agent tooling reads this (review finding).
+        bearerFormat: 'API key',
+        description: expect.any(String),
+      });
+    });
+
+    it('marks every keyed operation with bearer security, 401 and 403', async () => {
+      const keyed = (await ops()).filter(([name]) => !isHealth(name));
+      expect(keyed.length).toBe(7);
+      for (const [name, op] of keyed) {
+        expect({ name, security: op.security }).toEqual({
+          name,
+          security: [{ bearer: [] }],
+        });
+        expect(Object.keys(op.responses)).toEqual(
+          expect.arrayContaining(['401', '403']),
+        );
+      }
+    });
+
+    it('leaves the health checks open', async () => {
+      const open = (await ops()).filter(([name]) => isHealth(name));
+      expect(open.length).toBe(2);
+      for (const [, op] of open) expect(op.security).toBeUndefined();
+    });
   });
 
   describe('optimistic concurrency (ADR-0019)', () => {

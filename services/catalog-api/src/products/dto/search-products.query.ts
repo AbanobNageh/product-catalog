@@ -1,16 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
-  IsInt,
   IsOptional,
   IsString,
-  Max,
   MaxLength,
-  Min,
   ValidateBy,
 } from 'class-validator';
+import { IntQueryParam } from '../../common/int-query-param';
 import type { SearchQuery, SearchSort } from '../../search/search.ports';
 import { INT4_MAX } from './create-product.dto';
 
@@ -56,18 +54,6 @@ const NotBelowMinPrice = () =>
     },
   });
 
-/**
- * Optional integer query parameter: blank means unset, plain digits become a
- * number, and anything else (1e3, 0x10, 10.5) stays a string for @IsInt to
- * reject. @Type(() => Number) would turn '' into 0.
- */
-function toOptionalInt({ value }: { value: unknown }): unknown {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (trimmed === '') return undefined;
-  return /^\d+$/.test(trimmed) ? Number(trimmed) : value;
-}
-
 export class SearchProductsQuery implements SearchQuery {
   @ApiPropertyOptional({
     description: 'Full-text query on name and description',
@@ -89,20 +75,10 @@ export class SearchProductsQuery implements SearchQuery {
   @IsString()
   brand?: string;
 
-  @ApiPropertyOptional({ description: 'Minimum price in cents', example: 10000 })
-  @IsOptional()
-  @Transform(toOptionalInt)
-  @IsInt()
-  @Min(0)
-  @Max(INT4_MAX)
+  @IntQueryParam({ min: 0, max: INT4_MAX, description: 'Minimum price in cents', example: 10000 })
   minPrice?: number;
 
-  @ApiPropertyOptional({ description: 'Maximum price in cents, at least minPrice' })
-  @IsOptional()
-  @Transform(toOptionalInt)
-  @IsInt()
-  @Min(0)
-  @Max(INT4_MAX)
+  @IntQueryParam({ min: 0, max: INT4_MAX, description: 'Maximum price in cents, at least minPrice' })
   @NotBelowMinPrice()
   maxPrice?: number;
 
@@ -116,16 +92,13 @@ export class SearchProductsQuery implements SearchQuery {
   @IsBoolean()
   inStock?: boolean;
 
-  @ApiPropertyOptional({
+  @IntQueryParam({
+    min: 0,
+    max: INT4_MAX,
     description:
       'Only products with stock ≤ maxStock, for example 5 for low stock (0: out of stock only). Combine with sort=stock_asc',
     example: 5,
   })
-  @IsOptional()
-  @Transform(toOptionalInt)
-  @IsInt()
-  @Min(0)
-  @Max(INT4_MAX)
   maxStock?: number;
 
   @ApiPropertyOptional({
@@ -137,21 +110,15 @@ export class SearchProductsQuery implements SearchQuery {
   @IsIn(SORTS)
   sort: SearchSort = 'relevance';
 
-  @ApiPropertyOptional({
+  @IntQueryParam({
+    min: 1,
+    max: INT4_MAX,
     default: 1,
-    minimum: 1,
     description: `page × size must be at most ${MAX_RESULT_WINDOW}`,
   })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
   @WithinResultWindow()
   page: number = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
+  @IntQueryParam({ min: 1, max: 100, default: 20 })
   size: number = 20;
 }
